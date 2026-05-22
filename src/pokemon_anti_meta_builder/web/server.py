@@ -148,6 +148,9 @@ def run_server(
                 ".html": "text/html; charset=utf-8",
                 ".css": "text/css; charset=utf-8",
                 ".js": "application/javascript; charset=utf-8",
+                ".svg": "image/svg+xml",
+                ".png": "image/png",
+                ".ico": "image/x-icon",
             }.get(target.suffix, "application/octet-stream")
             data = target.read_bytes()
             self.send_response(200)
