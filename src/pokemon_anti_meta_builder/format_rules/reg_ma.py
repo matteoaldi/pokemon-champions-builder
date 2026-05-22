@@ -34,24 +34,39 @@ REG_MA_LEGAL_POKEMON = {
 }
 
 REG_MA_LEGAL_ITEMS = {
-    "Abomasite", "Absolite", "Aerodactylite", "Aggronite", "Alakazite", "Altarianite", "Ampharosite",
-    "Aspear Berry", "Audinite", "Babiri Berry", "Banettite", "Beedrillite", "Black Belt", "Black Glasses",
-    "Blastoisinite", "Bright Powder", "Cameruptite", "Chandelurite", "Charcoal", "Charizardite X",
-    "Charizardite Y", "Charti Berry", "Cheri Berry", "Chesnaughtite", "Chesto Berry", "Chilan Berry",
-    "Chimechite", "Choice Scarf", "Chople Berry", "Clefablite", "Coba Berry", "Colbur Berry",
-    "Crabominite", "Delphoxite", "Dragon Fang", "Dragoninite", "Drampanite", "Emboarite", "Excadrite",
-    "Fairy Feather", "Feraligite", "Floettite", "Focus Band", "Focus Sash", "Froslassite", "Galladite",
-    "Garchompite", "Gardevoirite", "Gengarite", "Glalitite", "Glimmoranite", "Golurkite", "Greninjite",
-    "Gyaradosite", "Haban Berry", "Hard Stone", "Hawluchanite", "Heracronite", "Houndoominite",
-    "Kangaskhanite", "Kasib Berry", "Kebia Berry", "King's Rock", "Leftovers", "Leppa Berry", "Light Ball",
-    "Lopunnite", "Lucarionite", "Lum Berry", "Magnet", "Manectite", "Medichamite", "Meganiumite",
-    "Mental Herb", "Meowsticite", "Metal Coat", "Miracle Seed", "Mystic Water", "Never-Melt Ice",
-    "Occa Berry", "Oran Berry", "Passho Berry", "Payapa Berry", "Pecha Berry", "Persim Berry",
-    "Pidgeotite", "Pinsirite", "Poison Barb", "Quick Claw", "Rawst Berry", "Rindo Berry", "Roseli Berry",
-    "Sablenite", "Scizorite", "Scope Lens", "Scovillainite", "Sharp Beak", "Sharpedonite", "Shell Bell",
-    "Shuca Berry", "Silk Scarf", "Silver Powder", "Sitrus Berry", "Skarmorite", "Slowbronite",
-    "Soft Sand", "Spell Tag", "Starminite", "Steelixite", "Tanga Berry", "Twisted Spoon", "Tyranitarite",
-    "Venusaurite", "Victreebelite", "Wacan Berry", "White Herb", "Yache Berry",
+    # Mega stones (incl. Champions Z/X/Y variants)
+    "Abomasite", "Absolite", "Absolite Z", "Aerodactylite", "Aggronite", "Alakazite", "Altarianite",
+    "Ampharosite", "Audinite", "Banettite", "Beedrillite", "Blastoisinite", "Cameruptite",
+    "Chandelurite", "Charizardite X", "Charizardite Y", "Chesnaughtite", "Chimechite", "Clefablite",
+    "Crabominite", "Delphoxite", "Dragoninite", "Drampanite", "Emboarite", "Excadrite", "Feraligite",
+    "Floettite", "Froslassite", "Galladite", "Garchompite", "Garchompite Z", "Gardevoirite",
+    "Gengarite", "Glalitite", "Glimmoranite", "Golurkite", "Greninjite", "Gyaradosite",
+    "Hawluchanite", "Heracronite", "Houndoominite", "Kangaskhanite", "Lopunnite", "Lucarionite",
+    "Lucarionite Z", "Manectite", "Medichamite", "Meganiumite", "Meowsticite", "Pidgeotite",
+    "Pinsirite", "Raichunite X", "Raichunite Y", "Sablenite", "Scizorite", "Scovillainite",
+    "Sharpedonite", "Skarmorite", "Slowbronite", "Starminite", "Steelixite", "Tyranitarite",
+    "Venusaurite", "Victreebelite",
+    # Berries — pinch / type-resist / status cure
+    "Aspear Berry", "Babiri Berry", "Charti Berry", "Cheri Berry", "Chesto Berry", "Chilan Berry",
+    "Chople Berry", "Coba Berry", "Colbur Berry", "Custap Berry", "Enigma Berry", "Haban Berry",
+    "Iapapa Berry", "Jaboca Berry", "Kasib Berry", "Kebia Berry", "Lansat Berry", "Leppa Berry",
+    "Liechi Berry", "Lum Berry", "Maranga Berry", "Micle Berry", "Occa Berry", "Oran Berry",
+    "Passho Berry", "Payapa Berry", "Pecha Berry", "Persim Berry", "Petaya Berry", "Rawst Berry",
+    "Rindo Berry", "Roseli Berry", "Rowap Berry", "Salac Berry", "Shuca Berry", "Sitrus Berry",
+    "Starf Berry", "Tanga Berry", "Wacan Berry", "Yache Berry",
+    # Type-boosting held items
+    "Black Belt", "Black Glasses", "Charcoal", "Dragon Fang", "Fairy Feather", "Hard Stone",
+    "Magnet", "Metal Coat", "Miracle Seed", "Mystic Water", "Never-Melt Ice", "Poison Barb",
+    "Sharp Beak", "Silk Scarf", "Silver Powder", "Soft Sand", "Spell Tag", "Twisted Spoon",
+    # Competitive utility items
+    "Air Balloon", "Assault Vest", "Big Root", "Binding Band", "Bright Powder", "Choice Band",
+    "Choice Scarf", "Choice Specs", "Covert Cloak", "Eject Button", "Eject Pack", "Eviolite",
+    "Expert Belt", "Float Stone", "Focus Band", "Focus Sash", "Heavy-Duty Boots", "King's Rock",
+    "Leftovers", "Life Orb", "Light Ball", "Light Clay", "Loaded Dice", "Lucky Egg", "Lum Berry",
+    "Mental Herb", "Metronome", "Mirror Herb", "Muscle Band", "Power Herb", "Punching Glove",
+    "Quick Claw", "Razor Claw", "Red Card", "Rocky Helmet", "Safety Goggles", "Scope Lens",
+    "Shed Shell", "Shell Bell", "Sticky Barb", "Throat Spray", "Toxic Orb", "Utility Umbrella",
+    "Weakness Policy", "White Herb", "Wide Lens", "Wise Glasses", "Zoom Lens",
 }
 
 
