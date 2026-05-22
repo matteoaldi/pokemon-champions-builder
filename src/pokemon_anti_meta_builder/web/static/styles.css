@@ -1164,6 +1164,121 @@ textarea {
   gap: 6px;
 }
 
+/* SAVED TEAMS --------------------------------------*/
+.current-team {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.current-team strong {
+  color: inherit;
+}
+
+.save-team-row {
+  display: flex;
+  gap: 6px;
+}
+
+.save-team-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--bg-soft);
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.save-team-row button {
+  padding: 0 12px;
+  min-height: 30px;
+}
+
+.saved-teams {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.saved-teams-empty {
+  font-size: 12px;
+  padding: 4px 2px;
+}
+
+.saved-team-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.saved-team-row.active {
+  border-color: var(--accent, #f5a623);
+}
+
+.saved-team-load {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.saved-team-load:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.saved-team-name {
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-team-meta {
+  font-size: 11px;
+}
+
+.saved-team-delete {
+  flex: 0 0 28px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.saved-team-delete:hover {
+  color: #ff7878;
+  background: rgba(255, 120, 120, 0.08);
+}
+
+/* CALC FROM-TEAM PICKER ----------------------------*/
+.from-team-row {
+  background: rgba(245, 166, 35, 0.08);
+  border: 1px dashed rgba(245, 166, 35, 0.35);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
 /* Responsive --------------------------------------*/
 @media (max-width: 1100px) {
   .app {

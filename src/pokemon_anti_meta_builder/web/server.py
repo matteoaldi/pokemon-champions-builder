@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -22,6 +24,7 @@ def run_server(
     format_id: str = "reg-ma",
     dex_path: str | Path | None = None,
     learnsets_path: str | Path | None = None,
+    teams_dir: str | Path | None = None,
 ) -> None:
     service = RecommendationService(
         input_path=input_path,
@@ -29,6 +32,7 @@ def run_server(
         dex_path=dex_path,
         learnsets_path=learnsets_path,
     )
+    storage = TeamStorage(Path(teams_dir) if teams_dir else Path.cwd() / "data" / "teams")
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args) -> None:
@@ -96,6 +100,17 @@ def run_server(
                     "hasLearnset": bool(learnset),
                 })
                 return
+            if parsed.path == "/api/teams":
+                self._json({"teams": storage.list_teams()})
+                return
+            if parsed.path.startswith("/api/teams/"):
+                team_id = parsed.path[len("/api/teams/"):]
+                team = storage.load_team(team_id)
+                if team is None:
+                    self.send_error(404, "team not found")
+                    return
+                self._json(team)
+                return
             self._static(parsed.path)
 
         def do_POST(self) -> None:
@@ -132,6 +147,31 @@ def run_server(
                 return
             if parsed.path == "/api/damage":
                 self._json(_damage_response(payload))
+                return
+            if parsed.path == "/api/teams":
+                name = (payload.get("name") or "").strip()
+                if not name:
+                    self.send_error(400, "missing team name")
+                    return
+                saved = storage.save_team(
+                    name=name,
+                    archetype=payload.get("archetype", "balance"),
+                    selected=payload.get("selected") or [],
+                    overrides=payload.get("overrides") or {},
+                    team_id=(payload.get("id") or "").strip() or None,
+                )
+                self._json(saved)
+                return
+            self.send_error(404)
+
+        def do_DELETE(self) -> None:
+            parsed = urlparse(self.path)
+            if parsed.path.startswith("/api/teams/"):
+                team_id = parsed.path[len("/api/teams/"):]
+                if not storage.delete_team(team_id):
+                    self.send_error(404, "team not found")
+                    return
+                self._json({"ok": True, "id": team_id})
                 return
             self.send_error(404)
 
@@ -244,6 +284,116 @@ def _combatant_from(payload: dict) -> Combatant:
         tera_type=(payload.get("teraType") or None),
         is_burned=bool(payload.get("isBurned")),
     )
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(name: str) -> str:
+    slug = _SLUG_RE.sub("-", name.lower()).strip("-")[:60]
+    return slug or "team"
+
+
+class TeamStorage:
+    """JSON-on-disk persistence for saved teams.
+
+    Each team is a single file under `root/<id>.json`. `id` is derived from
+    the user-provided name via `_slugify`, with `-2`, `-3`, ... appended on
+    collision when creating a new team.
+    """
+
+    def __init__(self, root: Path):
+        self.root = root
+
+    def _ensure_root(self) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def _safe_path(self, team_id: str) -> Path | None:
+        # Reject anything that isn't our slug shape — defends against
+        # `../` traversal in path-derived ids.
+        if not team_id or not re.fullmatch(r"[a-z0-9-]{1,80}", team_id):
+            return None
+        return self.root / f"{team_id}.json"
+
+    def list_teams(self) -> list[dict]:
+        if not self.root.exists():
+            return []
+        out: list[dict] = []
+        for path in sorted(self.root.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            out.append({
+                "id": data.get("id") or path.stem,
+                "name": data.get("name") or path.stem,
+                "size": len(data.get("selected") or []),
+                "archetype": data.get("archetype") or "balance",
+                "updated_at": data.get("updated_at") or "",
+            })
+        out.sort(key=lambda t: t.get("updated_at", ""), reverse=True)
+        return out
+
+    def load_team(self, team_id: str) -> dict | None:
+        path = self._safe_path(team_id)
+        if path is None or not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def save_team(
+        self,
+        name: str,
+        archetype: str,
+        selected: list[str],
+        overrides: dict,
+        team_id: str | None = None,
+    ) -> dict:
+        self._ensure_root()
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        if team_id:
+            path = self._safe_path(team_id)
+            if path is None:
+                team_id = None
+        if not team_id:
+            team_id = _slugify(name)
+            path = self._safe_path(team_id)
+            assert path is not None  # slug shape is always safe
+            suffix = 2
+            while path.exists():
+                candidate = f"{_slugify(name)}-{suffix}"[:80]
+                path = self._safe_path(candidate)
+                if path is None:
+                    candidate = "team"
+                    path = self._safe_path(candidate)
+                team_id = candidate
+                suffix += 1
+        existing = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                existing = {}
+        data = {
+            "id": team_id,
+            "name": name,
+            "archetype": archetype,
+            "selected": list(selected),
+            "overrides": dict(overrides),
+            "created_at": existing.get("created_at") or now,
+            "updated_at": now,
+        }
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return data
+
+    def delete_team(self, team_id: str) -> bool:
+        path = self._safe_path(team_id)
+        if path is None or not path.exists():
+            return False
+        path.unlink()
+        return True
 
 
 def _field_from(payload: dict) -> Field:

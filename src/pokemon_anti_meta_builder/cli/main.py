@@ -80,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--input", default="data/raw/example_meta.csv")
     serve.add_argument("--dex", default="data/raw/showdown_dex.json", help="Optional Showdown dex slim JSON to enable off-meta picks.")
     serve.add_argument("--learnsets", default="data/raw/showdown_learnsets.json", help="Optional Showdown learnsets slim JSON to filter calc moves to legal ones.")
+    serve.add_argument("--teams-dir", default="data/teams", help="Directory where saved teams are persisted as JSON files.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
 
@@ -104,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
             args.format,
             dex_path=args.dex,
             learnsets_path=args.learnsets,
+            teams_dir=args.teams_dir,
         )
         return 0
     return 1

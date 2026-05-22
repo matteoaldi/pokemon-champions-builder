@@ -6,6 +6,10 @@ const state = {
   activeTab: "threats",
   counters: null,
   overrides: {},
+  savedTeams: [],
+  currentTeamId: null,
+  currentTeamName: "",
+  lastTeam: [],
 };
 
 const els = {
@@ -14,6 +18,7 @@ const els = {
   clearButton: document.querySelector("#clearButton"),
   teamSlots: document.querySelector("#teamSlots"),
   teamDigest: document.querySelector("#teamDigest"),
+  currentTeamLabel: document.querySelector("#currentTeamLabel"),
   catalogList: document.querySelector("#catalogList"),
   searchInput: document.querySelector("#searchInput"),
   recommendations: document.querySelector("#recommendations"),
@@ -29,6 +34,9 @@ const els = {
   lookupInput: document.querySelector("#lookupInput"),
   lookupOptions: document.querySelector("#lookupOptions"),
   lookupResult: document.querySelector("#lookupResult"),
+  saveTeamName: document.querySelector("#saveTeamName"),
+  saveTeamButton: document.querySelector("#saveTeamButton"),
+  savedTeamsList: document.querySelector("#savedTeamsList"),
   tabs: document.querySelectorAll(".tab"),
   panels: document.querySelectorAll(".tab-panel"),
 };
@@ -36,7 +44,7 @@ const els = {
 async function init() {
   state.catalog = await fetchJson("/api/catalog");
   bindEvents();
-  await refresh();
+  await Promise.all([refresh(), loadSavedTeams()]);
 }
 
 function bindEvents() {
@@ -46,11 +54,26 @@ function bindEvents() {
   });
   els.clearButton.addEventListener("click", async () => {
     state.selected = [];
+    state.currentTeamId = null;
+    state.currentTeamName = "";
+    state.overrides = {};
     els.coachPanel.textContent = "";
+    renderCurrentTeamLabel();
     await refresh();
   });
   els.autoBuildButton.addEventListener("click", autoBuild);
   els.coachButton.addEventListener("click", askCoach);
+  if (els.saveTeamButton) {
+    els.saveTeamButton.addEventListener("click", saveCurrentTeam);
+  }
+  if (els.saveTeamName) {
+    els.saveTeamName.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        saveCurrentTeam();
+      }
+    });
+  }
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => selectTab(tab.dataset.tab));
   });
@@ -63,6 +86,132 @@ function bindEvents() {
   }
   initCalc();
   populateLookupDatalist();
+}
+
+async function loadSavedTeams() {
+  try {
+    const data = await fetchJson("/api/teams");
+    state.savedTeams = data.teams || [];
+  } catch (error) {
+    state.savedTeams = [];
+  }
+  renderSavedTeams();
+}
+
+function renderSavedTeams() {
+  if (!els.savedTeamsList) return;
+  if (!state.savedTeams.length) {
+    els.savedTeamsList.innerHTML = '<div class="muted saved-teams-empty">Nessun team salvato.</div>';
+    return;
+  }
+  els.savedTeamsList.innerHTML = state.savedTeams
+    .map((team) => {
+      const active = team.id === state.currentTeamId ? " active" : "";
+      return `
+        <div class="saved-team-row${active}" data-team-id="${escapeHtml(team.id)}">
+          <button type="button" class="saved-team-load" data-load="${escapeHtml(team.id)}">
+            <span class="saved-team-name">${escapeHtml(team.name)}</span>
+            <span class="saved-team-meta muted">${team.size}/6 · ${escapeHtml(team.archetype || "")}</span>
+          </button>
+          <button type="button" class="saved-team-delete" data-delete="${escapeHtml(team.id)}" title="Elimina">×</button>
+        </div>
+      `;
+    })
+    .join("");
+  els.savedTeamsList.querySelectorAll("[data-load]").forEach((btn) => {
+    btn.addEventListener("click", () => loadTeam(btn.dataset.load));
+  });
+  els.savedTeamsList.querySelectorAll("[data-delete]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteTeam(btn.dataset.delete);
+    });
+  });
+}
+
+function renderCurrentTeamLabel() {
+  if (!els.currentTeamLabel) return;
+  if (!state.currentTeamId) {
+    els.currentTeamLabel.classList.add("hidden");
+    els.currentTeamLabel.textContent = "";
+    return;
+  }
+  els.currentTeamLabel.classList.remove("hidden");
+  els.currentTeamLabel.innerHTML = `Team caricato: <strong>${escapeHtml(state.currentTeamName || state.currentTeamId)}</strong>`;
+}
+
+async function saveCurrentTeam() {
+  const inputName = (els.saveTeamName?.value || "").trim();
+  const name = inputName || state.currentTeamName || `Team ${new Date().toLocaleString("it-IT")}`;
+  if (!state.selected.length) {
+    alert("Aggiungi almeno un Pokémon al team prima di salvare.");
+    return;
+  }
+  const payload = {
+    name,
+    archetype: state.archetype,
+    selected: state.selected,
+    overrides: state.overrides,
+  };
+  // If we're editing a loaded team and the user didn't change the name,
+  // overwrite that team's file instead of creating a new one.
+  if (state.currentTeamId && (!inputName || inputName === state.currentTeamName)) {
+    payload.id = state.currentTeamId;
+    payload.name = state.currentTeamName || name;
+  }
+  let saved;
+  try {
+    saved = await fetchJson("/api/teams", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    alert(`Errore salvataggio team: ${error.message}`);
+    return;
+  }
+  state.currentTeamId = saved.id;
+  state.currentTeamName = saved.name;
+  if (els.saveTeamName) els.saveTeamName.value = "";
+  renderCurrentTeamLabel();
+  await loadSavedTeams();
+}
+
+async function loadTeam(teamId) {
+  let team;
+  try {
+    team = await fetchJson(`/api/teams/${encodeURIComponent(teamId)}`);
+  } catch (error) {
+    alert(`Errore caricamento team: ${error.message}`);
+    return;
+  }
+  state.currentTeamId = team.id;
+  state.currentTeamName = team.name;
+  state.selected = Array.isArray(team.selected) ? [...team.selected] : [];
+  state.overrides = team.overrides && typeof team.overrides === "object" ? { ...team.overrides } : {};
+  state.archetype = team.archetype || state.archetype;
+  if (els.saveTeamName) els.saveTeamName.value = "";
+  renderCurrentTeamLabel();
+  renderSavedTeams();
+  await refresh();
+}
+
+async function deleteTeam(teamId) {
+  const target = state.savedTeams.find((t) => t.id === teamId);
+  const label = target ? target.name : teamId;
+  if (!confirm(`Eliminare il team "${label}"?`)) return;
+  try {
+    await fetchJson(`/api/teams/${encodeURIComponent(teamId)}`, { method: "DELETE" });
+  } catch (error) {
+    alert(`Errore eliminazione team: ${error.message}`);
+    return;
+  }
+  if (state.currentTeamId === teamId) {
+    state.currentTeamId = null;
+    state.currentTeamName = "";
+    renderCurrentTeamLabel();
+  }
+  await loadSavedTeams();
 }
 
 function populateLookupDatalist() {
@@ -425,6 +574,11 @@ function calcCardTemplate(role, label) {
   return `
     <div class="calc-card" data-role="${role}">
       <strong>${label}</strong>
+      <label class="from-team-row" data-from-team-wrap hidden>Dal team
+        <select data-from-team>
+          <option value="">(scegli slot)</option>
+        </select>
+      </label>
       <label>Pokemon
         <select data-field="name"></select>
       </label>
@@ -503,7 +657,96 @@ async function populateCalcDropdowns() {
     calcState.showAllMoves = event.target.checked;
     renderCalcMoveDropdown();
   });
+  ["attacker", "defender"].forEach((role) => {
+    const card = document.querySelector(`.calc-card[data-role='${role}']`);
+    const teamSelect = card.querySelector("[data-from-team]");
+    if (teamSelect) {
+      teamSelect.addEventListener("change", () => {
+        if (teamSelect.value === "") return;
+        pickFromTeam(role, parseInt(teamSelect.value, 10));
+        teamSelect.value = "";
+      });
+    }
+  });
+  refreshCalcTeamPickers();
   syncCalcField();
+  updateLivePreview();
+}
+
+function refreshCalcTeamPickers() {
+  ["attacker", "defender"].forEach((role) => {
+    const card = document.querySelector(`.calc-card[data-role='${role}']`);
+    if (!card) return;
+    const wrap = card.querySelector("[data-from-team-wrap]");
+    const select = card.querySelector("[data-from-team]");
+    if (!wrap || !select) return;
+    if (!state.lastTeam.length) {
+      wrap.setAttribute("hidden", "");
+      select.innerHTML = '<option value="">(scegli slot)</option>';
+      return;
+    }
+    wrap.removeAttribute("hidden");
+    const options = ['<option value="">(scegli slot)</option>'].concat(
+      state.lastTeam.map((member, idx) => {
+        const label = `${idx + 1}. ${member.species}`;
+        return `<option value="${idx}">${escapeHtml(label)}</option>`;
+      })
+    );
+    select.innerHTML = options.join("");
+  });
+}
+
+async function pickFromTeam(role, index) {
+  const member = state.lastTeam[index];
+  if (!member) return;
+  const card = document.querySelector(`.calc-card[data-role='${role}']`);
+  if (!card) return;
+  // Pull a damage-calc-ready payload (handles mega form swap, types, base stats).
+  let data;
+  try {
+    data = await fetchJson(`/api/combatant?name=${encodeURIComponent(member.species)}`);
+  } catch (error) {
+    console.warn("failed to load combatant for", member.species, error);
+    return;
+  }
+  if (data.error) return;
+  calcState[role] = data;
+  const nameField = card.querySelector("[data-field='name']");
+  if (nameField) {
+    // Make sure the team species is selectable even if the catalog list
+    // doesn't include the mega-form display name returned by the payload.
+    if (!Array.from(nameField.options).some((o) => o.value === data.name)) {
+      nameField.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(data.name)}">${escapeHtml(data.name)}</option>`);
+    }
+    nameField.value = data.name;
+  }
+  // Overlay actual team member values on top of the auto-built defaults so
+  // user-edited EVs/nature/item make it into the calc.
+  const memberEvs = member.evs || {};
+  ["hp", "atk", "def", "spa", "spd", "spe"].forEach((s) => {
+    const el = card.querySelector(`[data-ev='${s}']`);
+    if (el) el.value = memberEvs[s] ?? data.evs?.[s] ?? 0;
+  });
+  const natureField = card.querySelector("[data-field='nature']");
+  if (natureField) {
+    const natures = Object.keys(NATURES);
+    natureField.innerHTML = natures.map((n) => `<option value="${n}">${n}</option>`).join("");
+    natureField.value = member.nature || data.nature || "Hardy";
+  }
+  const teraField = card.querySelector("[data-field='teraType']");
+  if (teraField) teraField.value = "";
+  card.querySelectorAll("[data-boost-value]").forEach((el) => {
+    el.textContent = "0";
+    el.classList.remove("boost-positive", "boost-negative");
+  });
+  // Reset status flags
+  const burnEl = card.querySelector("[data-field='isBurned']");
+  const paraEl = card.querySelector("[data-field='isParalyzed']");
+  if (burnEl) burnEl.checked = false;
+  if (paraEl) paraEl.checked = false;
+  if (role === "attacker") {
+    await loadAttackerLearnset(member.species);
+  }
   updateLivePreview();
 }
 
@@ -736,6 +979,7 @@ function computeWithSmogonCalc(attacker, defender, move, field) {
 
 function renderState(data) {
   state.selected = data.selected;
+  state.lastTeam = Array.isArray(data.team) ? data.team : [];
   renderTeam(data.team);
   renderCatalog();
   renderRecommendations(data.recommendations);
@@ -746,6 +990,7 @@ function renderState(data) {
   renderCounters(data.counters);
   els.showdownExport.value = data.showdown;
   renderDigest(data.digest);
+  refreshCalcTeamPickers();
 }
 
 function renderThreatCards(entries) {

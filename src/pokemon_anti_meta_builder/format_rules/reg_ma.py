@@ -34,7 +34,9 @@ REG_MA_LEGAL_POKEMON = {
 }
 
 REG_MA_LEGAL_ITEMS = {
-    # Mega stones (incl. Champions Z/X/Y variants)
+    # Mega stones for legal Reg M-A species (incl. Champions Z/X/Y variants
+    # observed in Showdown's dex — drop the Z/X/Y entries if Champions ends up
+    # not supporting them)
     "Abomasite", "Absolite", "Absolite Z", "Aerodactylite", "Aggronite", "Alakazite", "Altarianite",
     "Ampharosite", "Audinite", "Banettite", "Beedrillite", "Blastoisinite", "Cameruptite",
     "Chandelurite", "Charizardite X", "Charizardite Y", "Chesnaughtite", "Chimechite", "Clefablite",
@@ -46,27 +48,22 @@ REG_MA_LEGAL_ITEMS = {
     "Pinsirite", "Raichunite X", "Raichunite Y", "Sablenite", "Scizorite", "Scovillainite",
     "Sharpedonite", "Skarmorite", "Slowbronite", "Starminite", "Steelixite", "Tyranitarite",
     "Venusaurite", "Victreebelite",
-    # Berries — pinch / type-resist / status cure
+    # Berries — only the type-resist + status-cure + Sitrus/Oran/Lum set that
+    # Pokékipe actually shows in Reg M-A data. Champions excludes the pinch
+    # berry set (Liechi/Salac/Petaya/Lansat/Starf/...).
     "Aspear Berry", "Babiri Berry", "Charti Berry", "Cheri Berry", "Chesto Berry", "Chilan Berry",
-    "Chople Berry", "Coba Berry", "Colbur Berry", "Custap Berry", "Enigma Berry", "Haban Berry",
-    "Iapapa Berry", "Jaboca Berry", "Kasib Berry", "Kebia Berry", "Lansat Berry", "Leppa Berry",
-    "Liechi Berry", "Lum Berry", "Maranga Berry", "Micle Berry", "Occa Berry", "Oran Berry",
-    "Passho Berry", "Payapa Berry", "Pecha Berry", "Persim Berry", "Petaya Berry", "Rawst Berry",
-    "Rindo Berry", "Roseli Berry", "Rowap Berry", "Salac Berry", "Shuca Berry", "Sitrus Berry",
-    "Starf Berry", "Tanga Berry", "Wacan Berry", "Yache Berry",
-    # Type-boosting held items
+    "Chople Berry", "Coba Berry", "Colbur Berry", "Haban Berry", "Kasib Berry", "Kebia Berry",
+    "Leppa Berry", "Lum Berry", "Occa Berry", "Oran Berry", "Passho Berry", "Payapa Berry",
+    "Pecha Berry", "Persim Berry", "Rawst Berry", "Rindo Berry", "Roseli Berry", "Shuca Berry",
+    "Sitrus Berry", "Tanga Berry", "Wacan Berry", "Yache Berry",
+    # Type-boosting held items (classic gen 1-2 incense/herb set)
     "Black Belt", "Black Glasses", "Charcoal", "Dragon Fang", "Fairy Feather", "Hard Stone",
     "Magnet", "Metal Coat", "Miracle Seed", "Mystic Water", "Never-Melt Ice", "Poison Barb",
     "Sharp Beak", "Silk Scarf", "Silver Powder", "Soft Sand", "Spell Tag", "Twisted Spoon",
-    # Competitive utility items
-    "Air Balloon", "Assault Vest", "Big Root", "Binding Band", "Bright Powder", "Choice Band",
-    "Choice Scarf", "Choice Specs", "Covert Cloak", "Eject Button", "Eject Pack", "Eviolite",
-    "Expert Belt", "Float Stone", "Focus Band", "Focus Sash", "Heavy-Duty Boots", "King's Rock",
-    "Leftovers", "Life Orb", "Light Ball", "Light Clay", "Loaded Dice", "Lucky Egg", "Lum Berry",
-    "Mental Herb", "Metronome", "Mirror Herb", "Muscle Band", "Power Herb", "Punching Glove",
-    "Quick Claw", "Razor Claw", "Red Card", "Rocky Helmet", "Safety Goggles", "Scope Lens",
-    "Shed Shell", "Shell Bell", "Sticky Barb", "Throat Spray", "Toxic Orb", "Utility Umbrella",
-    "Weakness Policy", "White Herb", "Wide Lens", "Wise Glasses", "Zoom Lens",
+    # Utility items confirmed in Pokékipe Reg M-A data
+    "Bright Powder", "Choice Scarf", "Covert Cloak", "Focus Band", "Focus Sash", "King's Rock",
+    "Leftovers", "Light Ball", "Mental Herb", "Quick Claw", "Scope Lens", "Shell Bell",
+    "White Herb",
 }
 
 
