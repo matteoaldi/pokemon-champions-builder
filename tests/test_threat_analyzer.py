@@ -104,5 +104,8 @@ def test_threat_analyzer_falls_back_to_type_based_when_no_real_data() -> None:
 
     assert report.used_pokekipe_data is False
     assert report.threats_with_fallback >= 1
-    rendered = report.render()
-    assert "type-based" in rendered.lower()
+    # When the engine has zero Pokékipe entries we omit the source line entirely
+    # (showing "type-based fallback" on every threat is noise — re-enabled the
+    # moment Pokékipe data starts coming in).
+    assert "Garchomp" in report.entries[0].name
+    assert report.entries[0].source == "type-based"

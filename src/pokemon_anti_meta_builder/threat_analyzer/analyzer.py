@@ -54,13 +54,13 @@ class ThreatReport:
 
     def render(self) -> str:
         lines: list[str] = ["Threat report"]
-        if self.used_pokekipe_data:
+        if self.used_pokekipe_data and self.threats_with_real_data > 0:
+            # Only mention the source mix when we actually have Pokekipe entries;
+            # otherwise it's noise (every threat would be tagged "fallback").
             lines.append(
                 f"Fonte: Pokekipe per {self.threats_with_real_data} minaccia/e, "
-                f"fallback type-based per {self.threats_with_fallback}."
+                f"stima per {self.threats_with_fallback}."
             )
-        else:
-            lines.append("Fonte: type-based fallback (Pokekipe non espone checks/counters).")
         lines.append("")
         labels = {"danger": "Pericolose", "risky": "Da tenere d'occhio", "safe": "Coperte"}
         for severity in ("danger", "risky", "safe"):

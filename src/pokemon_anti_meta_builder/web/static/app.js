@@ -54,16 +54,6 @@ function bindEvents() {
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => selectTab(tab.dataset.tab));
   });
-  const explainBtn = document.querySelector("#explainSourceBtn");
-  const explainModal = document.querySelector("#explainSourceModal");
-  const closeExplainBtn = document.querySelector("#closeExplainBtn");
-  if (explainBtn && explainModal) {
-    explainBtn.addEventListener("click", () => explainModal.classList.remove("hidden"));
-    closeExplainBtn?.addEventListener("click", () => explainModal.classList.add("hidden"));
-    explainModal.addEventListener("click", (e) => {
-      if (e.target === explainModal) explainModal.classList.add("hidden");
-    });
-  }
   if (els.lookupInput) {
     let debounce;
     els.lookupInput.addEventListener("input", () => {
@@ -101,9 +91,7 @@ async function runLookup() {
     els.lookupResult.innerHTML = `<div class="note">Nessun Pokémon trovato per "${escapeHtml(name)}".</div>`;
     return;
   }
-  const sourceChip = data.source === "pokekipe"
-    ? chip("Pokékipe", "green")
-    : chip("type-based", "gray");
+  const sourceChip = data.source === "pokekipe" ? chip("Pokékipe", "green") : "";
   const typesChips = (data.types || []).map((t) => typeChip(t)).join(" ");
   const metaCounters = (data.counters || []).filter((c) => !c.offMeta);
   const offMetaCounters = (data.counters || []).filter((c) => c.offMeta);
@@ -146,11 +134,13 @@ function renderCounters(data) {
     els.countersPanel.innerHTML = '<div class="note">No data.</div>';
     return;
   }
+  const anyPokekipe = data.members.some((m) => m.source === "pokekipe");
+  const allSameSource = !anyPokekipe || data.members.every((m) => m.source === "pokekipe");
   els.countersPanel.innerHTML = data.members
     .map((member) => {
-      const tag = member.source === "pokekipe"
+      const tag = member.source === "pokekipe" && !allSameSource
         ? chip("Pokékipe data", "green")
-        : chip("type-based fallback", "gray");
+        : "";
       const megaChip = member.isMega ? chip("Mega", "gold") : "";
       const rows = member.counters.length
         ? member.counters
@@ -785,9 +775,11 @@ function renderThreatCards(entries) {
     parts.push(`<div class="threat-section threat-${sev}">`);
     parts.push(`<div class="threat-section-title"><span class="chip ${sectionTones[sev]}">${sectionTitles[sev]}</span></div>`);
     groups[sev].forEach((entry) => {
-      const sourceChip = entry.source === "pokekipe"
+      // Source chip only shown when there's a mix (some pokekipe, some fallback).
+      // When all entries use the same source it's just noise; hide it.
+      const sourceChip = entry.source === "pokekipe" && _shouldShowSourceChip(entries)
         ? `<span class="chip green">Pokékipe</span>`
-        : `<span class="chip gray">type-based</span>`;
+        : "";
       const num = numForName(entry.name);
       parts.push(`
         <div class="threat-card">
@@ -820,8 +812,8 @@ function renderDigest(digest) {
     .map((c) => `<span class="chip gold">${escapeHtml(c.name)} <small>(${c.hits} mon)</small></span>`)
     .join(" ");
   const sourceTag = (digest.top_counters || []).some((c) => c.source === "pokekipe")
-    ? chip("Pokekipe data", "green")
-    : chip("type-based fallback", "gray");
+    ? chip("Pokékipe", "green")
+    : "";
   els.teamDigest.innerHTML = `
     <div class="digest-head">Team digest <span class="muted">(${digest.team_size}/6 mon)</span> ${sourceTag}</div>
     <div class="digest-row"><strong>Top threats:</strong> ${threats || '<span class="muted">none</span>'}</div>
@@ -1100,6 +1092,14 @@ function typeChip(type) {
     return `<span class="chip type-${t}">${escapeHtml(t)}</span>`;
   }
   return chip(t);
+}
+
+function _shouldShowSourceChip(items) {
+  // Mixed sources → useful to mark which ones are real Pokékipe data.
+  // All same → noise, hide it.
+  if (!items || !items.length) return false;
+  const sources = new Set(items.map((i) => i.source));
+  return sources.size > 1;
 }
 
 function spriteUrl(num) {
