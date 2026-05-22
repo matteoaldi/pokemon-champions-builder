@@ -59,18 +59,24 @@
         <section class="tab-panel hidden" data-panel="matchup">
           <div id="teamDigest" class="team-digest hidden"></div>
 
-          <div class="section-head">
-            <h2>Minacce dal meta (top 20)</h2>
-            <span class="muted" id="threatCount"></span>
-          </div>
-          <p class="muted">Come va il tuo team contro i 20 Pokémon più giocati del meta.</p>
-          <div id="threatCards" class="threat-cards"></div>
+          <div class="matchup-grid">
+            <div class="matchup-col">
+              <div class="section-head">
+                <h2>Counter per ogni tuo Pokémon</h2>
+              </div>
+              <p class="muted">Per ognuno dei tuoi 6, i Pokémon che lo battono.</p>
+              <div id="countersPanel" class="counters-panel"></div>
+            </div>
 
-          <details class="matchup-section" open>
-            <summary><h2 style="display:inline">Counter per ogni tuo Pokémon</h2></summary>
-            <p class="muted">Per ognuno dei tuoi 6, i Pokémon meta che lo battono.</p>
-            <div id="countersPanel" class="counters-panel"></div>
-          </details>
+            <div class="matchup-col">
+              <div class="section-head">
+                <h2>Minacce dal meta (top 20)</h2>
+                <span class="muted" id="threatCount"></span>
+              </div>
+              <p class="muted">Come va il tuo team contro i 20 Pokémon più giocati. <button type="button" id="explainSourceBtn" class="inline-help" title="Spiegazione">cos'è il type-based fallback?</button></p>
+              <div id="threatCards" class="threat-cards"></div>
+            </div>
+          </div>
 
           <details class="threat-details">
             <summary class="muted">Mostra report testuale completo</summary>
@@ -79,6 +85,21 @@
 
           <div class="section-head"><h2>Warnings</h2></div>
           <div id="warningsPanel" class="note-list"></div>
+
+          <div id="explainSourceModal" class="explain-modal hidden">
+            <div class="explain-card">
+              <button type="button" class="explain-close" id="closeExplainBtn">×</button>
+              <h3>Pokékipe data vs Type-based fallback</h3>
+              <p><strong>Pokékipe</strong> espone, per ogni Pokémon del meta, il campo <code>checks_counters</code>: una lista di Pokémon che lo countano davvero secondo migliaia di partite reali analizzate. Quando è disponibile, lo usiamo come fonte primaria — il chip verde "Pokékipe" lo segnala.</p>
+              <p><strong>Type-based fallback</strong> entra in gioco quando quel campo non è popolato (per Reg M-A attualmente Pokékipe restituisce sempre lista vuota). Stimiamo i counter così:</p>
+              <ul>
+                <li>Cerchiamo Pokémon del pool che <em>colpiscono</em> i tipi del target almeno 2× con STAB</li>
+                <li>E che <em>non sono deboli</em> alle STAB del target</li>
+                <li>Ordinati per usage meta (alto prima), poi opzioni off-meta</li>
+              </ul>
+              <p>Limiti del fallback: non considera abilità (Levitate, Flash Fire), item (Air Balloon, Choice Band), o bulk. È un proxy onesto ma grossolano: meglio del nulla, peggio dei dati reali. Appena Pokékipe popola il campo, lo useremo automaticamente.</p>
+            </div>
+          </div>
         </section>
 
         <section class="tab-panel hidden" data-panel="lookup">

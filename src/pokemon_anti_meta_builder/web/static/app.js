@@ -54,6 +54,16 @@ function bindEvents() {
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => selectTab(tab.dataset.tab));
   });
+  const explainBtn = document.querySelector("#explainSourceBtn");
+  const explainModal = document.querySelector("#explainSourceModal");
+  const closeExplainBtn = document.querySelector("#closeExplainBtn");
+  if (explainBtn && explainModal) {
+    explainBtn.addEventListener("click", () => explainModal.classList.remove("hidden"));
+    closeExplainBtn?.addEventListener("click", () => explainModal.classList.add("hidden"));
+    explainModal.addEventListener("click", (e) => {
+      if (e.target === explainModal) explainModal.classList.add("hidden");
+    });
+  }
   if (els.lookupInput) {
     let debounce;
     els.lookupInput.addEventListener("input", () => {
