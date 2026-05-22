@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anti Meta Builder · Reg M-A</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="pokeball" aria-hidden="true"></span>
+        <div>
+          <h1>Anti Meta Builder</h1>
+          <p>Pokémon Champions · Regulation M-A</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="autoBuildButton" class="primary" type="button" title="Completa la squadra minimizzando i counter, mantenendo i Pokémon già scelti">Auto build</button>
+        <button id="coachButton" type="button">AI coach</button>
+      </div>
+    </header>
+
+    <main class="app">
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="section-head">
+            <h2>Team</h2>
+            <button id="clearButton" type="button">Clear</button>
+          </div>
+          <div id="teamSlots" class="team-slots"></div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="section-head">
+            <h2>Catalog</h2>
+          </div>
+          <input id="searchInput" class="search" type="search" placeholder="Cerca Pokémon..." />
+          <div id="catalogList" class="catalog-list"></div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-tab="build" type="button">Build</button>
+          <button class="tab" data-tab="matchup" type="button">Matchup</button>
+          <button class="tab" data-tab="lookup" type="button">Lookup</button>
+          <button class="tab" data-tab="calc" type="button">Damage Calc</button>
+          <button class="tab" data-tab="extras" type="button">Coach &amp; Export</button>
+        </nav>
+
+        <section class="tab-panel" data-panel="build">
+          <div class="section-head"><h2>Suggested next picks</h2></div>
+          <div id="recommendations" class="recommendations"></div>
+          <div class="section-head"><h2>Synergy</h2></div>
+          <div id="synergyPanel" class="note-list"></div>
+        </section>
+
+        <section class="tab-panel hidden" data-panel="matchup">
+          <div id="teamDigest" class="team-digest hidden"></div>
+
+          <div class="section-head">
+            <h2>Minacce dal meta (top 20)</h2>
+            <span class="muted" id="threatCount"></span>
+          </div>
+          <p class="muted">Come va il tuo team contro i 20 Pokémon più giocati del meta.</p>
+          <div id="threatCards" class="threat-cards"></div>
+
+          <details class="matchup-section" open>
+            <summary><h2 style="display:inline">Counter per ogni tuo Pokémon</h2></summary>
+            <p class="muted">Per ognuno dei tuoi 6, i Pokémon meta che lo battono.</p>
+            <div id="countersPanel" class="counters-panel"></div>
+          </details>
+
+          <details class="threat-details">
+            <summary class="muted">Mostra report testuale completo</summary>
+            <pre id="threatReport" class="report"></pre>
+          </details>
+
+          <div class="section-head"><h2>Warnings</h2></div>
+          <div id="warningsPanel" class="note-list"></div>
+        </section>
+
+        <section class="tab-panel hidden" data-panel="lookup">
+          <div class="section-head"><h2>Cerca counter di un Pokémon</h2></div>
+          <p class="muted">Funziona anche con forme Mega (es. "Charizard-Mega-X").</p>
+          <input id="lookupInput" class="search" type="search" placeholder="Es. Garchomp, Whimsicott, Charizard-Mega-Y..." list="lookupOptions" />
+          <datalist id="lookupOptions"></datalist>
+          <div id="lookupResult" class="counters-panel"></div>
+        </section>
+
+        <section class="tab-panel hidden" data-panel="calc">
+          <div class="section-head"><h2>Damage calculator</h2></div>
+          <div id="calcPanel" class="calc-panel"></div>
+        </section>
+
+        <section class="tab-panel hidden" data-panel="extras">
+          <div class="section-head"><h2>AI Coach</h2></div>
+          <pre id="coachPanel" class="coach"></pre>
+          <div class="section-head"><h2>Showdown Export</h2></div>
+          <textarea id="showdownExport" spellcheck="false"></textarea>
+        </section>
+      </section>
+    </main>
+
+    <script src="/vendor/calc.js" onerror="window.__calcMissing=true"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

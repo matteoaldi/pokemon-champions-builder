@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pokemon-anti-meta-builder"
+version = "0.1.0"
+description = "Deterministic CLI MVP for building anti-meta Pokemon Champions / VGC Regulation M-A teams."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Matteo Aldi" }]
+dependencies = []
+
+[project.scripts]
+pokemon-anti-meta-builder = "pokemon_anti_meta_builder.cli.main:main"
+pokemon-anti-meta-builder-web = "pokemon_anti_meta_builder.web.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pokemon_anti_meta_builder"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
