@@ -97,3 +97,27 @@ class TestOutspeedTool(unittest.TestCase):
     def test_missing_species_errors(self):
         out = self.reg.call("min_speed_to_outspeed", {"target": "Aerodactyl"})
         self.assertFalse(out["ok"])
+
+
+class TestSurviveOhkoTools(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_survive_returns_evs(self):
+        out = self.reg.call("min_evs_to_survive", {
+            "species": "Incineroar", "attacker": "Garchomp", "move": "Earthquake",
+        })
+        self.assertTrue(out["ok"])
+        self.assertIn("result", out)
+
+    def test_ohko_returns_evs(self):
+        out = self.reg.call("min_evs_to_ohko", {
+            "species": "Garchomp", "target": "Incineroar", "move": "Earthquake",
+        })
+        self.assertTrue(out["ok"])
+
+    def test_survive_missing_move_errors(self):
+        out = self.reg.call("min_evs_to_survive", {"species": "Incineroar", "attacker": "Garchomp"})
+        self.assertFalse(out["ok"])

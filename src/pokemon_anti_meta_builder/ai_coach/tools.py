@@ -24,6 +24,8 @@ class ToolRegistry:
             "countered_by": self._countered_by,
             "get_set": self._get_set,
             "min_speed_to_outspeed": self._min_speed_to_outspeed,
+            "min_evs_to_survive": self._min_evs_to_survive,
+            "min_evs_to_ohko": self._min_evs_to_ohko,
         }
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -131,3 +133,35 @@ class ToolRegistry:
                 "note": f"{result['evs'].get('spe', 0)} Spe EV per superare {target}",
             }
         return {"ok": True, "result": result, "assumptions": out.get("assumptions"), "proposal": proposal}
+
+    def _min_evs_to_survive(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        attacker = (args.get("attacker") or "").strip()
+        move = (args.get("move") or "").strip()
+        if not species or not attacker or not move:
+            return {"ok": False, "error": "need species, attacker and move"}
+        out = self.ev_tuner.optimize({
+            "mode": "survive", "ourSpecies": species, "targetSpecies": attacker,
+            "move": move, "threshold": args.get("threshold") or "guaranteed",
+        })
+        if not out.get("ok"):
+            return out
+        proposal = {"species": species, "evs": out["result"].get("evs", {}),
+                    "note": f"regge {move} di {attacker}"} if out["result"].get("feasible") else None
+        return {"ok": True, "result": out["result"], "assumptions": out.get("assumptions"), "proposal": proposal}
+
+    def _min_evs_to_ohko(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        target = (args.get("target") or "").strip()
+        move = (args.get("move") or "").strip()
+        if not species or not target or not move:
+            return {"ok": False, "error": "need species, target and move"}
+        out = self.ev_tuner.optimize({
+            "mode": "ohko", "ourSpecies": species, "targetSpecies": target,
+            "move": move, "goal": args.get("goal") or "ohko",
+        })
+        if not out.get("ok"):
+            return out
+        proposal = {"species": species, "evs": out["result"].get("evs", {}),
+                    "note": f"{args.get('goal') or 'ohko'} {target} con {move}"} if out["result"].get("feasible") else None
+        return {"ok": True, "result": out["result"], "assumptions": out.get("assumptions"), "proposal": proposal}
