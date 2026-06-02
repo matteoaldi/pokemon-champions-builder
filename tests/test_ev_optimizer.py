@@ -154,5 +154,41 @@ class TestSuggestRemaining(unittest.TestCase):
         self.assertIn("spesi", sugg[0])
 
 
+class TestOutspeedBoost(unittest.TestCase):
+    def _mon(self, spe_base, evs_spe=0, nature="Hardy"):
+        from pokemon_anti_meta_builder.damage_calc.calculator import Combatant
+        return Combatant(
+            name="Test", level=50, types=["normal"],
+            base_stats={"hp": 100, "atk": 100, "def": 100, "spa": 100, "spd": 100, "spe": spe_base},
+            evs={"spe": evs_spe}, ivs={"spe": 31}, nature=nature,
+        )
+
+    def test_our_boost_plus_one_lowers_required_evs(self):
+        from pokemon_anti_meta_builder.ev_optimizer.outspeed import find_min_evs_to_outspeed
+        our = self._mon(80)
+        target = self._mon(120, evs_spe=32, nature="Timid")
+        base = find_min_evs_to_outspeed(our, target)
+        boosted = find_min_evs_to_outspeed(our, target, our_boost=1)
+        self.assertTrue(boosted.feasible)
+        # +1 Speed must make it feasible with fewer than the 32 EV hard cap;
+        # a no-op boost would have stayed infeasible (base is infeasible here).
+        self.assertLess(boosted.spe_ev, 32)
+
+    def test_target_boost_raises_required_speed(self):
+        from pokemon_anti_meta_builder.ev_optimizer.outspeed import find_min_evs_to_outspeed
+        our = self._mon(120)
+        target = self._mon(100)
+        no_boost = find_min_evs_to_outspeed(our, target)
+        with_boost = find_min_evs_to_outspeed(our, target, target_boost=2)
+        self.assertGreater(with_boost.target_speed, no_boost.target_speed)
+
+    def test_default_boost_zero_unchanged(self):
+        from pokemon_anti_meta_builder.ev_optimizer.outspeed import find_min_evs_to_outspeed
+        our = self._mon(100)
+        target = self._mon(95, evs_spe=32, nature="Timid")
+        r = find_min_evs_to_outspeed(our, target)
+        self.assertEqual(r, find_min_evs_to_outspeed(our, target, our_boost=0, target_boost=0))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -43,12 +43,22 @@ def find_min_evs_to_outspeed(
     our_mon: Combatant,
     target_mon: Combatant,
     condition: str = "none",
+    our_boost: int = 0,
+    target_boost: int = 0,
 ) -> OutspeedResult:
-    """Return the minimum (Spe EVs, nature) that makes us strictly faster."""
+    """Return the minimum (Spe EVs, nature) that makes us strictly faster.
+
+    our_boost / target_boost are Speed stage changes (-6..+6) applied via the
+    combatant boosts, so "+1 Speed" (Dragon Dance, etc.) is modelled correctly.
+    """
     tw_me, tw_opp = _tailwind_flags(condition)
     scarf_me = condition == "scarf_me"
     scarf_opp = condition == "scarf_opp"
     paralysis_opp = condition == "paralysis_opp"
+
+    target_mon = _with_spe_boost(target_mon, target_boost)
+    # _with_spe (used in the loop below) copies base.boosts, so this boost is retained.
+    our_mon = _with_spe_boost(our_mon, our_boost)
 
     target_speed = _live_speed(target_mon, tailwind=tw_opp, scarf=scarf_opp, paralyzed=paralysis_opp)
 
@@ -106,6 +116,23 @@ def _with_spe(base: Combatant, spe_ev: int, nature: str) -> Combatant:
         ivs=dict(base.ivs),
         nature=nature,
         boosts=dict(base.boosts),
+        tera_type=base.tera_type,
+        is_burned=base.is_burned,
+    )
+
+
+def _with_spe_boost(base: Combatant, stage: int) -> Combatant:
+    new_boosts = dict(base.boosts)
+    new_boosts["spe"] = max(-6, min(6, new_boosts.get("spe", 0) + stage))
+    return Combatant(
+        name=base.name,
+        level=base.level,
+        types=list(base.types),
+        base_stats=dict(base.base_stats),
+        evs=dict(base.evs),
+        ivs=dict(base.ivs),
+        nature=base.nature,
+        boosts=new_boosts,
         tera_type=base.tera_type,
         is_burned=base.is_burned,
     )

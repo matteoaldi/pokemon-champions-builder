@@ -105,6 +105,8 @@ class EVTunerService:
                     our_mon=our_combatant,
                     target_mon=target_combatant,
                     condition=(payload.get("condition") or "none"),
+                    our_boost=int(payload.get("ourBoost") or 0),
+                    target_boost=int(payload.get("targetBoost") or 0),
                 )
                 used = {"spe": result.spe_ev}
                 role_hint = _detect_role(our_combatant)
