@@ -1,22 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from pokemon_anti_meta_builder.constants import TYPE_CHART
 from pokemon_anti_meta_builder.data_fetcher.pokekipe import _details_to_row
 from pokemon_anti_meta_builder.meta_parser import MetaParser
-from pokemon_anti_meta_builder.models import EVSpread, PokemonMeta, PokemonSet, WeightedOption
-from pokemon_anti_meta_builder.threat_analyzer import ThreatAnalyzer
-
-
-def _set(species: str, moves: list[str] | None = None) -> PokemonSet:
-    return PokemonSet(
-        species=species,
-        item="",
-        ability="",
-        moves=moves or [],
-        evs=EVSpread(),
-        nature="Hardy",
-        roles=[],
-        explanation="",
-    )
+from pokemon_anti_meta_builder.recommendations import RecommendationService
+from pokemon_anti_meta_builder.recommendations.service import _is_switch_in, _threat_summary
 
 
 def test_pokekipe_mapping_extracts_checks_counters() -> None:
@@ -59,53 +49,32 @@ def test_meta_parser_reads_checks_counters_csv(tmp_path) -> None:
     assert meta[0].checks_counters[0].weight == 42.0
 
 
-def test_threat_analyzer_uses_real_checks_when_present() -> None:
-    threat = PokemonMeta(
-        name="Sneasler",
-        usage=43.8,
-        types=["fighting", "poison"],
-        checks_counters=[
-            WeightedOption("Incineroar", 42.0),
-            WeightedOption("Whimsicott", 28.0),
-        ],
-    )
-    incineroar = PokemonMeta(name="Incineroar", usage=30.0, types=["fire", "dark"])
-    team = [_set("Incineroar"), _set("Garchomp")]
-
-    report = ThreatAnalyzer().analyze(team, [threat, incineroar])
-
-    assert report.used_pokekipe_data is True
-    assert report.threats_with_real_data >= 1
-    safe_entries = [e for e in report.entries if e.severity == "safe"]
-    assert any("Incineroar" in e.summary and "Pokékipe" in e.summary for e in safe_entries)
+def test_is_switch_in_resists_one_weak_to_none() -> None:
+    # Water resists Fire STAB, weak to none of (fire) -> switch-in.
+    assert _is_switch_in(["water"], ["fire"], TYPE_CHART) is True
+    # Grass is weak to Fire -> not a switch-in even though it could resist water.
+    assert _is_switch_in(["grass"], ["fire"], TYPE_CHART) is False
+    # Neutral to everything -> not a switch-in (resists nothing).
+    assert _is_switch_in(["normal"], ["fighting"], TYPE_CHART) is False
 
 
-def test_threat_analyzer_flags_missing_real_check() -> None:
-    threat = PokemonMeta(
-        name="Sneasler",
-        usage=43.8,
-        types=["fighting", "poison"],
-        checks_counters=[WeightedOption("Incineroar", 42.0)],
-    )
-    team = [_set("Garchomp", moves=["Dragon Claw"])]
-
-    report = ThreatAnalyzer().analyze(team, [threat])
-
-    assert report.used_pokekipe_data is True
-    danger_entries = [e for e in report.entries if e.severity == "danger"]
-    assert any("Incineroar" in e.summary for e in danger_entries)
+def test_threat_summary_status_text() -> None:
+    covered = _threat_summary(["A"], ["B"], [], ["B"], "covered")
+    assert "Risposta pulita" in covered and "colpita da B" in covered
+    exposed = _threat_summary(["A", "B"], [], [], [], "exposed")
+    assert "Preme 2 membri" in exposed and "Nessuna risposta" in exposed
 
 
-def test_threat_analyzer_falls_back_to_type_based_when_no_real_data() -> None:
-    threat = PokemonMeta(name="Garchomp", usage=40.0, types=["dragon", "ground"])
-    team = [_set("Glaceon", moves=["Ice Beam"]), _set("Tangrowth", moves=["Giga Drain"])]
+def test_team_threat_coverage_unified_payload() -> None:
+    path = Path(__file__).parents[1] / "data" / "raw" / "example_meta.csv"
+    state = RecommendationService(path).auto_build()
+    threats = state.threat_entries
 
-    report = ThreatAnalyzer().analyze(team, [threat])
-
-    assert report.used_pokekipe_data is False
-    assert report.threats_with_fallback >= 1
-    # When the engine has zero Pokékipe entries we omit the source line entirely
-    # (showing "type-based fallback" on every threat is noise — re-enabled the
-    # moment Pokékipe data starts coming in).
-    assert "Garchomp" in report.entries[0].name
-    assert report.entries[0].source == "type-based"
+    assert threats, "expected unified threat entries"
+    sample = threats[0]
+    for key in ("name", "severity", "summary", "pressures", "answers", "isMega", "usage"):
+        assert key in sample
+    assert sample["severity"] in {"danger", "risky", "safe"}
+    # Sorted by number of pressured members (desc).
+    pressures = [len(t["pressures"]) for t in threats]
+    assert pressures == sorted(pressures, reverse=True)

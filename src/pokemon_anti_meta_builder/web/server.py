@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from pokemon_anti_meta_builder.ai_coach import AICoach
 from pokemon_anti_meta_builder.damage_calc import DamageCalculator, MOVE_LIBRARY
 from pokemon_anti_meta_builder.damage_calc.calculator import Combatant, Field
+from pokemon_anti_meta_builder.ev_optimizer import EVTunerService
 from pokemon_anti_meta_builder.recommendations import RecommendationService
 
 
@@ -25,14 +26,17 @@ def run_server(
     dex_path: str | Path | None = None,
     learnsets_path: str | Path | None = None,
     teams_dir: str | Path | None = None,
+    pikalytics_path: str | Path | None = None,
 ) -> None:
     service = RecommendationService(
         input_path=input_path,
         format_id=format_id,
         dex_path=dex_path,
         learnsets_path=learnsets_path,
+        pikalytics_path=pikalytics_path,
     )
     storage = TeamStorage(Path(teams_dir) if teams_dir else Path.cwd() / "data" / "teams")
+    ev_tuner = EVTunerService(service)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args) -> None:
@@ -45,9 +49,8 @@ def run_server(
                 return
             if parsed.path == "/api/state":
                 query = parse_qs(parsed.query)
-                archetype = query.get("archetype", ["balance"])[0]
                 selected = _split_team(query.get("team", [""])[0])
-                self._json(service.build_state(archetype, selected).as_dict())
+                self._json(service.build_state(selected).as_dict())
                 return
             if parsed.path == "/api/autobuild":
                 # GET fallback: empty team
@@ -64,7 +67,20 @@ def run_server(
                 if not name:
                     self.send_error(400, "missing name")
                     return
-                self._json(service.combatant_payload(name))
+                # Optional ?item=... lets the caller force a different held
+                # item (e.g. drop the mega stone) so the calc treats the mon
+                # as its non-mega form.
+                item_override = query.get("item", [""])[0]
+                ability_override = query.get("ability", [""])[0]
+                nature_override = query.get("nature", [""])[0]
+                override: dict = {}
+                if item_override:
+                    override["item"] = item_override
+                if ability_override:
+                    override["ability"] = ability_override
+                if nature_override:
+                    override["nature"] = nature_override
+                self._json(service.combatant_payload(name, override or None))
                 return
             if parsed.path == "/api/calc/moves":
                 self._json({"moves": sorted(MOVE_LIBRARY.keys())})
@@ -85,6 +101,14 @@ def run_server(
                     return
                 self._json(service.counter_lookup(name))
                 return
+            if parsed.path == "/api/countered_by":
+                query = parse_qs(parsed.query)
+                name = query.get("name", [""])[0]
+                if not name:
+                    self.send_error(400, "missing name")
+                    return
+                self._json(service.countered_by(name))
+                return
             if parsed.path == "/api/learnset":
                 query = parse_qs(parsed.query)
                 name = query.get("name", [""])[0]
@@ -103,6 +127,24 @@ def run_server(
             if parsed.path == "/api/teams":
                 self._json({"teams": storage.list_teams()})
                 return
+            if parsed.path == "/api/moves_index":
+                self._json({"moves": service.all_known_moves()})
+                return
+            if parsed.path == "/api/move_users":
+                query = parse_qs(parsed.query)
+                move = query.get("move", [""])[0]
+                if not move:
+                    self.send_error(400, "missing move")
+                    return
+                self._json({"move": move, "species": service.species_with_move(move)})
+                return
+            if parsed.path.startswith("/api/ev-optimizer/spreads/"):
+                species = parsed.path[len("/api/ev-optimizer/spreads/"):]
+                if not species:
+                    self.send_error(400, "missing species")
+                    return
+                self._json(ev_tuner.spreads_for(species))
+                return
             if parsed.path.startswith("/api/teams/"):
                 team_id = parsed.path[len("/api/teams/"):]
                 team = storage.load_team(team_id)
@@ -120,14 +162,12 @@ def run_server(
             payload = json.loads(body or "{}")
             if parsed.path == "/api/state":
                 self._json(service.build_state(
-                    payload.get("archetype", "balance"),
                     payload.get("selected", []),
                     payload.get("overrides") or {},
                 ).as_dict())
                 return
             if parsed.path == "/api/coach":
                 state = service.build_state(
-                    payload.get("archetype", "balance"),
                     payload.get("selected", []),
                     payload.get("overrides") or {},
                 ).as_dict()
@@ -148,6 +188,15 @@ def run_server(
             if parsed.path == "/api/damage":
                 self._json(_damage_response(payload))
                 return
+            if parsed.path == "/api/ev-optimizer":
+                self._json(ev_tuner.optimize(payload))
+                return
+            if parsed.path == "/api/spread-maker":
+                self._json(ev_tuner.spread_maker(payload))
+                return
+            if parsed.path == "/api/spread-maker/report":
+                self._json(ev_tuner.spread_report(payload))
+                return
             if parsed.path == "/api/teams":
                 name = (payload.get("name") or "").strip()
                 if not name:
@@ -155,7 +204,6 @@ def run_server(
                     return
                 saved = storage.save_team(
                     name=name,
-                    archetype=payload.get("archetype", "balance"),
                     selected=payload.get("selected") or [],
                     overrides=payload.get("overrides") or {},
                     team_id=(payload.get("id") or "").strip() or None,
@@ -196,6 +244,15 @@ def run_server(
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
+            # Aggressively no-cache for HTML (otherwise Safari may pin a stale
+            # version with the old favicon link). Static assets get a short
+            # max-age so they revalidate on reload.
+            if target.suffix == ".html":
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
+            else:
+                self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(data)
 
@@ -328,7 +385,6 @@ class TeamStorage:
                 "id": data.get("id") or path.stem,
                 "name": data.get("name") or path.stem,
                 "size": len(data.get("selected") or []),
-                "archetype": data.get("archetype") or "balance",
                 "updated_at": data.get("updated_at") or "",
             })
         out.sort(key=lambda t: t.get("updated_at", ""), reverse=True)
@@ -346,7 +402,6 @@ class TeamStorage:
     def save_team(
         self,
         name: str,
-        archetype: str,
         selected: list[str],
         overrides: dict,
         team_id: str | None = None,
@@ -379,7 +434,6 @@ class TeamStorage:
         data = {
             "id": team_id,
             "name": name,
-            "archetype": archetype,
             "selected": list(selected),
             "overrides": dict(overrides),
             "created_at": existing.get("created_at") or now,

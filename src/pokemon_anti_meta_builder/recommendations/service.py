@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pokemon_anti_meta_builder.archetypes import Archetype, get_archetype, list_archetypes
 from pokemon_anti_meta_builder.data_fetcher import (
     load_meta_file,
     load_showdown_dex,
@@ -13,23 +12,19 @@ from pokemon_anti_meta_builder.data_fetcher import (
 )
 from pokemon_anti_meta_builder.format_rules import filter_legal_meta
 from pokemon_anti_meta_builder.meta_parser.normalizer import normalize_name, to_key
-from pokemon_anti_meta_builder.models import BuiltTeam, PokemonMeta, PokemonSet, WeightedOption
+from pokemon_anti_meta_builder.models import PokemonMeta, PokemonSet, WeightedOption
 from pokemon_anti_meta_builder.set_builder import SetBuilder
-from pokemon_anti_meta_builder.showdown_exporter import ShowdownExporter
 from pokemon_anti_meta_builder.team_builder import TeamBuilder
-from pokemon_anti_meta_builder.threat_analyzer import ThreatAnalyzer
 
 
 @dataclass
 class BuilderState:
     format_id: str
-    archetype_id: str
     selected: list[str]
     team: list[PokemonSet]
     recommendations: list[dict[str, Any]]
     threat_report: str
     threat_entries: list[dict[str, Any]]
-    showdown: str
     roles: dict[str, int]
     synergy: list[str]
     warnings: list[str]
@@ -41,13 +36,11 @@ class BuilderState:
         mega_lookup = getattr(self, "_mega_lookup", None)
         return {
             "format": self.format_id,
-            "archetype": self.archetype_id,
             "selected": self.selected,
             "team": [_set_to_dict(member, meta_lookup, mega_lookup) for member in self.team],
             "recommendations": self.recommendations,
             "threatReport": self.threat_report,
             "threatEntries": list(self.threat_entries),
-            "showdown": self.showdown,
             "roles": self.roles,
             "synergy": self.synergy,
             "warnings": self.warnings,
@@ -63,6 +56,7 @@ class RecommendationService:
         format_id: str = "reg-ma",
         dex_path: str | Path | None = None,
         learnsets_path: str | Path | None = None,
+        pikalytics_path: str | Path | None = None,
     ):
         self.input_path = Path(input_path)
         self.format_id = format_id
@@ -70,7 +64,24 @@ class RecommendationService:
         self.meta, self.legality_warnings = filter_legal_meta(meta, format_id)
         self.dex = load_showdown_dex(dex_path) if dex_path else []
         self.dex_by_key = {to_key(entry.get("name", "")): entry for entry in self.dex if entry.get("name")}
+        # Extend dex lookup so alt_forms (Rotom-Wash, Slowking-Galar, ecc.) fall
+        # back to their base entry's stats — better than empty base_stats which
+        # would make HP=0 and damage% explode.
+        for entry in self.dex:
+            for form_name in (entry.get("alt_forms") or []):
+                fk = to_key(form_name)
+                if fk and fk not in self.dex_by_key:
+                    self.dex_by_key[fk] = entry
         self.off_meta = _build_off_meta_entries(self.meta, self.dex)
+        # Optionally hydrate off-meta entries with Pikalytics-sourced sets
+        # (items/abilities/moves/spread/nature) so the SetBuilder produces
+        # something better than the role-based fallback for mons like
+        # Aggron/Primarina that Pokekipe doesn't track.
+        self.pikalytics_sets: dict[str, dict] = {}
+        if pikalytics_path:
+            from pokemon_anti_meta_builder.data_fetcher.pikalytics import load_cache
+            self.pikalytics_sets = load_cache(pikalytics_path)
+            self._apply_pikalytics_to_off_meta()
         self.full_pool: list[PokemonMeta] = list(self.meta) + list(self.off_meta)
         self.meta_by_key = {to_key(mon.name): mon for mon in self.full_pool}
         self.off_meta_keys = {to_key(mon.name) for mon in self.off_meta}
@@ -80,22 +91,64 @@ class RecommendationService:
         self.mega_form_lookup = _build_mega_form_lookup(self.mega_forms)
         self.set_builder = SetBuilder()
         self.team_builder = TeamBuilder()
-        self.exporter = ShowdownExporter()
+
+    def _apply_pikalytics_to_off_meta(self) -> None:
+        """Hydrate self.off_meta entries with Pikalytics-sourced data.
+
+        For each off-meta species we have parsed Pikalytics data for, populate
+        items/abilities/moves/ev_spreads/natures so the SetBuilder picks them
+        up instead of falling back to a role-based default. Items are filtered
+        against the Reg M-A legal whitelist to avoid Life Orb/Specs/etc.
+        """
+        from pokemon_anti_meta_builder.format_rules.reg_ma import REG_MA_LEGAL_ITEMS
+
+        legal_lower = {item.lower() for item in REG_MA_LEGAL_ITEMS}
+        for i, mon in enumerate(self.off_meta):
+            data = self.pikalytics_sets.get(mon.name)
+            if not data:
+                continue
+            items = [
+                WeightedOption(name=it["name"], weight=float(it["pct"]))
+                for it in (data.get("items") or [])
+                if it.get("name") and it["name"].lower() in legal_lower
+            ]
+            abilities = [
+                WeightedOption(name=ab["name"], weight=float(ab["pct"]))
+                for ab in (data.get("abilities") or [])
+                if ab.get("name")
+            ]
+            moves = [
+                WeightedOption(name=mv["name"], weight=float(mv["pct"]))
+                for mv in (data.get("moves") or [])
+                if mv.get("name")
+            ]
+            ev_spreads: list[WeightedOption] = []
+            natures: list[WeightedOption] = []
+            if data.get("topNature") and data.get("topSpread"):
+                spread_text = f"{data['topNature']}:{data['topSpread']}"
+                pct = float(data.get("topSpreadPct") or 0.0)
+                ev_spreads.append(WeightedOption(name=spread_text, weight=pct))
+                natures.append(WeightedOption(name=data["topNature"], weight=pct))
+
+            self.off_meta[i] = PokemonMeta(
+                name=mon.name,
+                usage=float(data.get("usage") or 0.0),
+                winrate=float(data.get("winrate") or 0.0) if data.get("winrate") else mon.winrate,
+                types=list(mon.types),
+                items=items or list(mon.items),
+                abilities=abilities or list(mon.abilities),
+                moves=moves or list(mon.moves),
+                ev_spreads=ev_spreads or list(mon.ev_spreads),
+                natures=natures or list(mon.natures),
+                teammates=list(mon.teammates),
+                checks_counters=list(mon.checks_counters),
+                roles=list(mon.roles),
+                raw={**mon.raw, "pikalytics": True},
+            )
 
     def catalog(self) -> dict[str, Any]:
         return {
             "format": self.format_id,
-            "archetypes": [
-                {
-                    "id": archetype.id,
-                    "name": archetype.name,
-                    "summary": archetype.summary,
-                    "preferredPokemon": list(archetype.preferred_pokemon),
-                    "requiredRoles": list(archetype.required_roles),
-                    "countersToCover": list(archetype.counters_to_cover),
-                }
-                for archetype in list_archetypes()
-            ],
             "pokemon": [
                 {
                     "name": mon.name,
@@ -105,6 +158,9 @@ class RecommendationService:
                     "roles": mon.roles,
                     "topItem": mon.items[0].name if mon.items else "",
                     "offMeta": to_key(mon.name) in self.off_meta_keys,
+                    # hasData=False -> legal in Reg M-A but nobody plays it (no Pikalytics
+                    # set, no Pokékipe usage); the UI hides these by default.
+                    "hasData": (to_key(mon.name) not in self.off_meta_keys) or bool(mon.raw.get("pikalytics")),
                     "num": self.dex_by_key.get(to_key(mon.name), {}).get("num"),
                 }
                 for mon in self.full_pool
@@ -123,11 +179,9 @@ class RecommendationService:
 
     def build_state(
         self,
-        archetype_id: str = "balance",
         selected: list[str] | None = None,
         overrides: dict[str, dict[str, Any]] | None = None,
     ) -> BuilderState:
-        archetype = get_archetype(archetype_id)
         selected_meta = self._selected_meta(selected or [])
         warnings = list(self.legality_warnings)
         if len(selected_meta) > 6:
@@ -146,29 +200,27 @@ class RecommendationService:
                 used_items.add(member.item)
         warnings.extend(warning for member in team for warning in member.warnings)
         warnings.extend(_team_rule_warnings(team))
-        recommendations = self.recommend_next(archetype, selected_meta)
+        recommendations = self.recommend_next(selected_meta)
         if team:
-            threat_obj = ThreatAnalyzer(mega_form_lookup=self.mega_form_lookup).analyze(team, self.meta, top_n=20)
-            threat_report = threat_obj.render()
-            threat_entries = [e.as_dict() for e in threat_obj.entries]
-            counters_payload = self.team_counters([mon.name for mon in selected_meta], overrides=overrides)
+            counters_payload = self.team_counters(
+                [mon.name for mon in selected_meta], overrides=overrides, team_sets=team
+            )
+            threat_entries = counters_payload.get("threats", [])
+            threat_report = _render_threat_report(threat_entries)
         else:
             threat_report = "Aggiungi Pokémon per iniziare l'analisi matchup."
             threat_entries = []
-            counters_payload = {"members": []}
-        showdown = self.exporter.export_team(BuiltTeam(self.format_id, team, warnings)) if team else ""
+            counters_payload = {"members": [], "threats": []}
         digest = self.team_digest([mon.name for mon in selected_meta]) if selected_meta else None
         state = BuilderState(
             format_id=self.format_id,
-            archetype_id=archetype.id,
             selected=[mon.name for mon in selected_meta],
             team=team,
             recommendations=recommendations,
             threat_report=threat_report,
             threat_entries=threat_entries,
-            showdown=showdown,
             roles=_role_counts(team),
-            synergy=_synergy_notes(archetype, selected_meta, team),
+            synergy=_synergy_notes(selected_meta, team),
             warnings=warnings,
             digest=digest,
             counters=counters_payload,
@@ -196,7 +248,7 @@ class RecommendationService:
             if not best:
                 break
             selected.append(best.name)
-        return self.build_state("balance", selected, overrides=overrides)
+        return self.build_state(selected, overrides=overrides)
 
     def _best_counter_minimizing_candidate(
         self,
@@ -227,47 +279,105 @@ class RecommendationService:
                 best = candidate
         return best
 
-    def recommend_next(self, archetype: Archetype, selected_meta: list[PokemonMeta], limit: int = 6) -> list[dict[str, Any]]:
+    # Recommend v2 component weights (sum 100). Priority: team synergy first,
+    # then counter coverage, then recurring teammates, then raw meta strength.
+    RECO_WEIGHTS = {"synergy": 0.35, "counter": 0.30, "teammate": 0.20, "meta": 0.15}
+
+    def recommend_next(self, selected_meta: list[PokemonMeta], limit: int = 6) -> list[dict[str, Any]]:
+        """Score candidates with four normalized (0..1) components, weighted.
+
+        Candidate pool is every mon WITH real data (on-meta + Pikalytics-hydrated
+        off-meta); the 24 no-data legal mons are excluded. Each recommendation
+        carries a `breakdown` of the four weighted contributions for transparency.
+        """
         selected_keys = {to_key(mon.name) for mon in selected_meta}
-        threats = sorted(self.meta, key=lambda mon: mon.usage, reverse=True)[:12]
-        team_counter_targets = self._team_counter_targets(selected_meta)
-        scored: list[tuple[float, PokemonMeta, list[str]]] = []
-        for candidate in self.meta:
-            if to_key(candidate.name) in selected_keys:
-                continue
+        targets = self._team_counter_targets(selected_meta)
+        total_target_weight = sum(t["weight"] for t in targets) or 1.0
+        team_weak = self._team_weakness_profile(selected_meta)
+        team_names = {mon.name for mon in selected_meta}
+        team_roles = {role for mon in selected_meta for role in mon.roles}
+        from pokemon_anti_meta_builder.team_builder.builder import TARGET_ROLES
+        missing_roles = set(TARGET_ROLES) - team_roles
+        W = self.RECO_WEIGHTS
+
+        candidates = [
+            c for c in self.full_pool
+            if to_key(c.name) not in selected_keys
+            and (to_key(c.name) not in self.off_meta_keys or bool(c.raw.get("pikalytics")))
+        ]
+
+        scored: list[tuple[float, PokemonMeta, list[str], dict[str, float]]] = []
+        for candidate in candidates:
             if _would_break_mega_rule(candidate, selected_meta):
                 continue  # Reg M-A: only one Mega Stone per team
             if _would_duplicate_item(candidate, selected_meta):
                 continue  # Item Clause: skip duplicates outright
-            covered = _candidate_covers(candidate, team_counter_targets)
-            cover_score = sum(target["weight"] for target in covered) * 1.6
-            base = self.team_builder.score_candidate(candidate, selected_meta, threats)
-            base *= 0.25  # de-emphasize general meta score
-            bonus, reasons = _archetype_bonus(candidate, archetype)
-            score = cover_score + base + bonus
+
+            reasons: list[str] = []
+
+            # (1) Synergy + types to cover (0..1): defensive type synergy + missing roles.
+            synergy_c, syn_reasons = _synergy_component(candidate, team_weak, missing_roles)
+            reasons.extend(syn_reasons)
+
+            # (2) Counter coverage (0..1): how much of the team's current counters it answers.
+            covered = _candidate_covers(candidate, targets)
+            counter_c = min(1.0, sum(t["weight"] for t in covered) / total_target_weight) if targets else 0.0
             if covered:
-                names = ", ".join(target["name"] for target in covered[:3])
-                reasons.insert(0, f"counters team threats: {names}")
-            elif team_counter_targets:
-                reasons.append("does not address current team counters")
-                score -= 6
-            scored.append((score, candidate, reasons))
+                reasons.append("batte i tuoi counter: " + ", ".join(t["name"] for t in covered[:3]))
+
+            # (3) Teammate synergy (0..1): recurring Pokékipe teammates already on the team.
+            tm_weight = sum(opt.weight for opt in candidate.teammates if opt.name in team_names)
+            teammate_c = min(1.0, tm_weight / 30.0)
+            if teammate_c > 0:
+                reasons.append("compagno ricorrente con il tuo team")
+
+            # (4) Meta strength (0..1): usage + winrate.
+            usage_c = min(1.0, (candidate.usage or 0.0) / 40.0)
+            wr = candidate.winrate
+            wr_c = min(1.0, max(0.0, (wr - 45.0) / 15.0)) if wr is not None else 0.0
+            meta_c = 0.6 * usage_c + 0.4 * wr_c
+
+            breakdown = {
+                "synergy": round(100 * W["synergy"] * synergy_c, 1),
+                "counter": round(100 * W["counter"] * counter_c, 1),
+                "teammate": round(100 * W["teammate"] * teammate_c, 1),
+                "meta": round(100 * W["meta"] * meta_c, 1),
+            }
+            total = sum(breakdown.values())
+            scored.append((total, candidate, reasons, breakdown))
+
         scored.sort(key=lambda item: (item[0], item[1].usage), reverse=True)
         return [
             {
                 "name": mon.name,
-                "score": round(score, 2),
+                "score": round(total, 1),
+                "breakdown": breakdown,
                 "usage": mon.usage,
                 "winrate": mon.winrate,
                 "types": mon.types,
                 "roles": mon.roles,
+                "offMeta": to_key(mon.name) in self.off_meta_keys,
                 "item": mon.items[0].name if mon.items else "",
                 "ability": mon.abilities[0].name if mon.abilities else "",
                 "moves": [move.name for move in mon.moves[:4]],
-                "reasons": reasons or ["strong general score"],
+                "reasons": reasons or ["buon profilo generale"],
             }
-            for score, mon, reasons in scored[:limit]
+            for total, mon, reasons, breakdown in scored[:limit]
         ]
+
+    def _team_weakness_profile(self, selected_meta: list[PokemonMeta]) -> dict[str, int]:
+        """Map attacking_type -> how many team members take super-effective damage from it."""
+        from pokemon_anti_meta_builder.constants import TYPE_CHART
+
+        profile: dict[str, int] = {}
+        for mon in selected_meta:
+            for attack_type, chart in TYPE_CHART.items():
+                mult = 1.0
+                for def_type in mon.types:
+                    mult *= chart.get(def_type, 1.0)
+                if mult >= 2.0:
+                    profile[attack_type] = profile.get(attack_type, 0) + 1
+        return profile
 
     def _team_counter_targets(self, selected_meta: list[PokemonMeta]) -> list[dict[str, Any]]:
         """Aggregate threats that currently counter the team.
@@ -436,6 +546,115 @@ class RecommendationService:
             "megaForm": species_mega.get("name") if species_mega else None,
         }
 
+    def _built_set(self, name: str):
+        """Build (and cache) the meta/Pikalytics set for `name`. Mega form names
+        resolve to the base species (megas share the base movepool). Returns the
+        built PokemonSet, or None when the mon is unknown / build fails."""
+        cache = getattr(self, "_built_set_cache", None)
+        if cache is None:
+            cache = self._built_set_cache = {}
+        key = to_key(name)
+        if key in cache:
+            return cache[key]
+        direct_mega = next(
+            (f for f in self.mega_forms if to_key(f.get("name", "")) == key), None
+        )
+        mon_key = to_key(direct_mega.get("base_species", "")) if direct_mega else key
+        mon = self.meta_by_key.get(mon_key)
+        built = None
+        if mon is not None:
+            try:
+                built = self.set_builder.build_set(mon)
+            except Exception:
+                built = None
+        cache[key] = built
+        return built
+
+    def _offensive_moves_vs(
+        self, name: str, target_types: list[str]
+    ) -> tuple[list[tuple[str, float]], bool]:
+        """Real damaging moves from `name`'s set that hit `target_types` super-
+        effectively. Returns (hits, has_set): hits is [(move_name, multiplier)];
+        has_set is True only when the set actually had damaging moves we could
+        read (so callers know whether to trust this over the STAB proxy)."""
+        from pokemon_anti_meta_builder.constants import TYPE_CHART
+        from pokemon_anti_meta_builder.damage_calc.calculator import get_move_library
+
+        built = self._built_set(name)
+        if built is None:
+            return [], False
+        library = get_move_library()
+        hits: list[tuple[str, float]] = []
+        has_damaging = False
+        for move in built.moves:
+            entry = library.get(move)
+            if not entry or entry.get("category") == "status" or not entry.get("bp"):
+                continue
+            move_type = str(entry.get("type") or "").lower()
+            if not move_type:
+                continue
+            has_damaging = True
+            mult = _type_multiplier_dict(move_type, target_types, TYPE_CHART)
+            if mult >= 2.0:
+                hits.append((move, mult))
+        return hits, has_damaging
+
+    def _matchup_reasons(
+        self,
+        target_types: list[str],
+        target_speed: int | None,
+        counter_name: str,
+        counter_types: list[str],
+    ) -> dict[str, Any]:
+        """Why `counter_name` beats the looked-up target: offensive edge (real
+        damaging moves from the Pikalytics/meta set that hit SE, falling back to
+        STAB types when no set is available), defensive resistances/immunities vs
+        the target's STABs, and base-Speed comparison."""
+        from pokemon_anti_meta_builder.constants import TYPE_CHART
+
+        reasons: list[str] = []
+        # offense: prefer the counter's real moves; STAB types only as fallback
+        move_hits, has_set = self._offensive_moves_vs(counter_name, target_types)
+        if move_hits:
+            seen: set[str] = set()
+            for move, mult in sorted(move_hits, key=lambda x: -x[1])[:3]:
+                if move in seen:
+                    continue
+                seen.add(move)
+                reasons.append(f"{move} ×{int(mult)}")
+        elif not has_set:
+            stab_hits = [
+                (t, _type_multiplier_dict(t, target_types, TYPE_CHART))
+                for t in counter_types if t
+            ]
+            for t, mult in sorted((h for h in stab_hits if h[1] >= 2.0), key=lambda x: -x[1]):
+                reasons.append(f"colpisce {t.capitalize()} ×{int(mult)}")
+
+        # defense: target STAB types the counter resists / is immune to
+        for t in target_types:
+            if not t:
+                continue
+            mult = _type_multiplier_dict(t, counter_types, TYPE_CHART)
+            if mult == 0:
+                reasons.append(f"immune a {t.capitalize()}")
+            elif mult <= 0.5:
+                reasons.append(f"resiste {t.capitalize()}")
+
+        # speed: base-Speed comparison (only when both known)
+        counter_speed = self._base_speed(counter_name)
+        speed_cmp = None
+        if counter_speed is not None and target_speed is not None:
+            if counter_speed > target_speed:
+                speed_cmp = "faster"
+                reasons.append(f"più veloce ({counter_speed} vs {target_speed})")
+            elif counter_speed < target_speed:
+                speed_cmp = "slower"
+                reasons.append(f"più lento ({counter_speed} vs {target_speed})")
+            else:
+                speed_cmp = "tie"
+                reasons.append(f"speed tie ({counter_speed})")
+        return {"reasons": reasons, "speedCmp": speed_cmp}
+
     def counter_lookup(self, name: str, limit: int = 12) -> dict[str, Any]:
         """Stand-alone "who counters X" lookup, for the search-a-mon panel.
 
@@ -483,18 +702,26 @@ class RecommendationService:
                 checks_counters = list(target.checks_counters)
                 usage = target.usage
 
+        if is_mega:
+            target_speed = (mega.get("base_stats") or {}).get("spe")
+            target_speed = int(target_speed) if target_speed is not None else None
+        else:
+            target_speed = self._base_speed(key)
+
         if checks_counters:
             source = "pokekipe"
             entries = []
             for option in checks_counters[:limit]:
                 opt_key = to_key(option.name)
                 meta_entry = self.meta_by_key.get(opt_key)
+                counter_types = list(meta_entry.types) if meta_entry else []
                 entries.append({
                     "name": option.name,
                     "usage_vs": option.weight,
                     "meta_usage": meta_entry.usage if meta_entry else 0.0,
-                    "types": list(meta_entry.types) if meta_entry else [],
+                    "types": counter_types,
                     "offMeta": opt_key in self.off_meta_keys,
+                    **self._matchup_reasons(target_types, target_speed, option.name, counter_types),
                 })
         else:
             source = "type-based"
@@ -521,6 +748,7 @@ class RecommendationService:
                         "meta_usage": candidate.usage,
                         "types": list(candidate.types),
                         "offMeta": candidate_key in self.off_meta_keys,
+                        **self._matchup_reasons(target_types, target_speed, candidate.name, list(candidate.types)),
                     })
                     seen_keys.add(candidate_key)
                 if len(entries) >= limit:
@@ -540,7 +768,115 @@ class RecommendationService:
         """Return the gen-9 legal move list for `name` if loaded."""
         return list(self.learnsets_by_key.get(to_key(name), []))
 
-    def combatant_payload(self, name: str) -> dict[str, Any]:
+    def countered_by(self, name: str, limit: int = 12) -> dict[str, Any]:
+        """Inverse of counter_lookup: list mons that `name` itself counters.
+
+        Combines two signals:
+        - Pokekipe: every meta mon whose `checks_counters` includes `name`
+          → that mon is naturally countered by `name`.
+        - Type-based fallback: meta mons whose effective types are hit 2x
+          by any of `name`'s STAB types AND whose own STABs are resisted by
+          `name`.
+        """
+        from pokemon_anti_meta_builder.constants import TYPE_CHART
+
+        key = to_key(name)
+        subject = self.meta_by_key.get(key)
+        subject_types: list[str] = []
+        if subject:
+            subject_types = list(subject.types)
+        else:
+            dex_entry = self.dex_by_key.get(key, {})
+            subject_types = [t.lower() for t in dex_entry.get("types", [])]
+        if not subject_types:
+            return {"name": name, "types": [], "victims": [], "source": "unknown"}
+
+        # 1) Pokékipe explicit: meta mons that list `name` as a check/counter.
+        explicit_hits: dict[str, dict[str, Any]] = {}
+        for victim in self.meta:
+            for opt in victim.checks_counters:
+                if to_key(opt.name) == key:
+                    explicit_hits[to_key(victim.name)] = {
+                        "name": victim.name,
+                        "usage_vs": float(opt.weight),
+                        "meta_usage": victim.usage,
+                        "types": list(victim.types),
+                        "offMeta": False,
+                        "source": "pokekipe",
+                    }
+                    break
+
+        # 2) Type-based supplement, only for meta mons not already in explicit.
+        type_hits: list[dict[str, Any]] = []
+        for victim in self.meta:
+            vkey = to_key(victim.name)
+            if vkey == key or vkey in explicit_hits:
+                continue
+            hits_se = any(
+                _type_multiplier_dict(t, victim.types, TYPE_CHART) >= 2.0
+                for t in subject_types if t
+            )
+            safe_from_victim = all(
+                _type_multiplier_dict(t, subject_types, TYPE_CHART) <= 1.0
+                for t in victim.types if t
+            ) if victim.types else True
+            if hits_se and safe_from_victim:
+                type_hits.append({
+                    "name": victim.name,
+                    "usage_vs": 0.0,
+                    "meta_usage": victim.usage,
+                    "types": list(victim.types),
+                    "offMeta": False,
+                    "source": "type-fallback",
+                })
+
+        explicit_list = sorted(explicit_hits.values(), key=lambda d: d["meta_usage"], reverse=True)
+        type_hits.sort(key=lambda d: d["meta_usage"], reverse=True)
+        merged = (explicit_list + type_hits)[:limit]
+        return {
+            "name": subject.name if subject else name,
+            "types": subject_types,
+            "victims": merged,
+            "source": "mixed" if explicit_list and type_hits else ("pokekipe" if explicit_list else "type-fallback"),
+        }
+
+    def all_known_moves(self) -> list[str]:
+        """All unique move names across loaded learnsets, sorted."""
+        seen: set[str] = set()
+        for moves in self.learnsets.values():
+            for m in moves:
+                seen.add(m)
+        return sorted(seen)
+
+    def species_with_move(self, move: str) -> list[str]:
+        """Return all species (Reg M-A pool) whose learnset includes `move`.
+
+        Match is case-insensitive on the move name. Only species present in
+        the catalog (meta + off-meta) are returned, sorted with meta picks
+        first (by usage desc) and off-meta after (alphabetical).
+        """
+        target = to_key(move)
+        if not target or not self.learnsets_by_key:
+            return []
+        meta_keys = {to_key(mon.name): mon for mon in self.full_pool}
+        on_meta: list[tuple[float, str]] = []
+        off_meta_hits: list[str] = []
+        for species_name, moves in self.learnsets.items():
+            key = to_key(species_name)
+            if key not in meta_keys:
+                continue
+            if not any(to_key(m) == target for m in moves):
+                continue
+            mon = meta_keys[key]
+            if key in self.off_meta_keys:
+                off_meta_hits.append(mon.name)
+            else:
+                on_meta.append((-mon.usage, mon.name))
+        on_meta.sort()
+        off_meta_hits.sort()
+        return [name for _, name in on_meta] + off_meta_hits
+
+    def combatant_payload(self, name: str, override: dict[str, Any] | None = None) -> dict[str, Any]:
         """Build a damage-calculator-ready payload for `name`.
 
         Pulls types/base stats from the Showdown dex slice (when available)
@@ -549,19 +885,42 @@ class RecommendationService:
         Mega Stone, swap base stats / types / ability with the Mega form.
         """
         key = to_key(name)
-        mon = self.meta_by_key.get(key)
-        dex_entry = self.dex_by_key.get(key, {})
+        # 1) Direct mega form lookup. If `name` is e.g. "Charizard-Mega-Y",
+        #    resolve to the base species (Charizard) for set data but swap in
+        #    the mega's base stats/types/ability for stat math.
+        direct_mega = next(
+            (form for form in self.mega_forms if to_key(form.get("name", "")) == key),
+            None,
+        )
+        if direct_mega:
+            base_species_key = to_key(direct_mega.get("base_species", ""))
+            mon = self.meta_by_key.get(base_species_key)
+            dex_entry = self.dex_by_key.get(base_species_key, {})
+        else:
+            mon = self.meta_by_key.get(key)
+            dex_entry = self.dex_by_key.get(key, {})
         if mon is None and not dex_entry:
             return {"error": f"unknown Pokemon: {name}"}
         if mon is None:
             mon = PokemonMeta(name=normalize_name(name), usage=0.0, types=[t.lower() for t in dex_entry.get("types", [])])
         built = self.set_builder.build_set(mon)
+        # Apply optional override (item/ability/nature/moves/evs) — same shape
+        # as the team `overrides` dict. This lets /api/combatant respect manual
+        # tweaks (e.g. removed the mega stone) so the mega swap below sees the
+        # post-override item.
+        if override:
+            built = _apply_overrides(built, override)
 
         display_name = built.species
         types = mon.types or [t.lower() for t in dex_entry.get("types", [])]
         base_stats = dex_entry.get("base_stats", {})
         ability = built.ability
-        mega = self.mega_form_lookup.get(to_key(built.item)) if built.item else None
+        # Mega swap: prefer the direct lookup (user explicitly picked the mega
+        # form name) over the item-based detection (legacy path for base
+        # species + mega stone item).
+        mega = direct_mega
+        if mega is None and built.item:
+            mega = self.mega_form_lookup.get(to_key(built.item))
         if mega and to_key(mega.get("base_species", "")) == to_key(built.species):
             display_name = mega["name"] or display_name
             types = mega["types"] or types
@@ -592,6 +951,7 @@ class RecommendationService:
         selected: list[str],
         limit_per_mon: int = 6,
         overrides: dict[str, dict[str, Any]] | None = None,
+        team_sets: list[PokemonSet] | None = None,
     ) -> dict[str, Any]:
         """For each picked Pokemon, list who counters it.
 
@@ -608,10 +968,33 @@ class RecommendationService:
         members: list[dict[str, Any]] = []
         selected_meta = self._selected_meta(selected)
         meta_by_key = {to_key(mon.name): mon for mon in self.meta}
+
+        # Per-member profile reused by both the per-member list and the
+        # team-wide threat-coverage view below. When the built team sets are
+        # available we capture each member's real offensive move types so the
+        # coverage view answers with actual coverage, not just STAB.
+        sets_by_key = {to_key(m.species): m for m in (team_sets or [])}
+        profiles: list[dict[str, Any]] = []
         for mon in selected_meta:
             override = overrides_by_key.get(to_key(mon.name)) or {}
-            effective_types = self._effective_types_for(mon, override.get("item"))
-            mega = self._mega_for(mon.name, override.get("item"))
+            item = override.get("item")
+            member_set = sets_by_key.get(to_key(mon.name))
+            profiles.append(
+                {
+                    "meta": mon,
+                    "key": to_key(mon.name),
+                    "eff_types": self._effective_types_for(mon, item),
+                    "counter_keys": {to_key(o.name) for o in mon.checks_counters},
+                    "speed": self._base_speed(mon.name, item),
+                    "mega": self._mega_for(mon.name, item),
+                    "offense": self._offensive_types(member_set) if member_set else set(),
+                }
+            )
+
+        for profile in profiles:
+            mon = profile["meta"]
+            effective_types = profile["eff_types"]
+            mega = profile["mega"]
             display_name = mega["name"] if mega else mon.name
 
             real = mon.checks_counters
@@ -629,16 +1012,18 @@ class RecommendationService:
                 source = "type-fallback"
                 entries = []
                 seen_threat_keys: set[str] = set()
-                mon_key = to_key(mon.name)
+                mon_key = profile["key"]
                 for threat in sorted(self.meta, key=lambda m: m.usage, reverse=True):
                     threat_key = to_key(threat.name)
                     if threat_key == mon_key or threat_key in seen_threat_keys:
                         continue
-                    hits_se = any(_type_multiplier_dict(t, effective_types, TYPE_CHART) >= 2.0 for t in threat.types if t)
-                    if hits_se:
+                    eff = self._effective_threat(threat)
+                    if self._threat_pressures(eff["types"], eff["speed"], effective_types, profile["speed"]):
                         entries.append(
                             {
                                 "name": threat.name,
+                                "form": eff["form_name"],
+                                "isMega": eff["is_mega"],
                                 "usage": 0.0,
                                 "meta_usage": threat.usage,
                             }
@@ -651,12 +1036,163 @@ class RecommendationService:
                     "species": display_name,
                     "baseSpecies": mon.name,
                     "isMega": bool(mega),
+                    "megaFallback": bool(mega and source == "type-fallback"),
                     "offMeta": to_key(mon.name) in self.off_meta_keys,
                     "source": source,
                     "counters": entries,
                 }
             )
-        return {"members": members}
+        threats = self._team_threat_coverage(profiles)
+        return {"members": members, "threats": threats}
+
+    def _base_speed(self, name: str, item: str | None = None) -> int | None:
+        """Base Speed of the effective form (mega when the matching stone is held)."""
+        if item:
+            mega = self._mega_for(name, item)
+            if mega and (mega.get("base_stats") or {}).get("spe") is not None:
+                return mega["base_stats"]["spe"]
+        bs = self.dex_by_key.get(to_key(name), {}).get("base_stats") or {}
+        spe = bs.get("spe")
+        return int(spe) if spe is not None else None
+
+    def _effective_threat(self, threat: PokemonMeta) -> dict[str, Any]:
+        """Resolve a meta threat to its effective battle form. When a mega stone
+        is among the threat's most-used items, use the mega's types/Speed (e.g.
+        Charizard → Charizard-Mega-Y, Fire/Flying). Mega defines these mons, so
+        assessing them in base form would understate the threat."""
+        types = list(threat.types)
+        speed = self._base_speed(threat.name)
+        form_name = threat.name
+        is_mega = False
+        for option in threat.items[:2]:
+            form = self.mega_form_lookup.get(to_key(option.name))
+            if form and to_key(form.get("base_species", "")) == to_key(threat.name):
+                types = list(form.get("types") or types)
+                base_stats = form.get("base_stats") or {}
+                if base_stats.get("spe") is not None:
+                    speed = int(base_stats["spe"])
+                form_name = form.get("name") or form_name
+                is_mega = True
+                break
+        return {"types": types, "speed": speed, "form_name": form_name, "is_mega": is_mega}
+
+    def _threat_pressures(
+        self,
+        threat_types: list[str],
+        threat_speed: int | None,
+        defender_types: list[str],
+        defender_speed: int | None,
+    ) -> bool:
+        """Type-fallback: do `threat_types` pressure a member with `defender_types`?
+
+        True when the threat has a STAB super-effective vs the member — but NOT
+        when the member clearly wins first (outspeeds it AND threatens it back
+        with a super-effective STAB). Speed filter only applies when both base
+        speeds are known; otherwise it stays conservative (counts the pressure).
+        Threat types/Speed are the effective (mega-aware) form."""
+        from pokemon_anti_meta_builder.constants import TYPE_CHART
+
+        hits = any(_type_multiplier_dict(t, defender_types, TYPE_CHART) >= 2.0 for t in threat_types if t)
+        if not hits:
+            return False
+        if defender_speed is not None and threat_speed is not None and defender_speed > threat_speed:
+            beats_back = any(
+                _type_multiplier_dict(t, threat_types, TYPE_CHART) >= 2.0 for t in defender_types if t
+            )
+            if beats_back:
+                return False  # member outspeeds and OHKO-threatens back → not a real counter
+        return True
+
+    def _offensive_types(self, member: PokemonSet | None) -> set[str]:
+        """Element types of every move on a built set (real coverage, not STAB)."""
+        if member is None:
+            return set()
+        from pokemon_anti_meta_builder.constants import move_type_for
+        from pokemon_anti_meta_builder.damage_calc.calculator import get_move_library
+
+        library = get_move_library()
+        types: set[str] = set()
+        for move in member.moves:
+            entry = library.get(move)
+            move_type = entry.get("type") if entry else move_type_for(move)
+            if move_type:
+                types.add(str(move_type).lower())
+        return types
+
+    def _team_threat_coverage(self, profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Team-wide view (B6+B7 unified): which meta Pokemon pressure the most
+        members, and whether the team has a valid answer — via Pokekipe checks, a
+        real offensive move that hits super-effectively, or a defensive switch-in.
+        Mega- and speed-aware. Diagnostic only: it flags exposure, it does not
+        prescribe picks (synergy lives in the recommend/synergy views)."""
+        from pokemon_anti_meta_builder.constants import TYPE_CHART
+
+        if not profiles:
+            return []
+        member_keys = {p["key"] for p in profiles}
+        rows: list[dict[str, Any]] = []
+        seen_threats: set[str] = set()
+        for threat in self.meta:
+            tkey = to_key(threat.name)
+            if tkey in member_keys or tkey in seen_threats:
+                continue
+            seen_threats.add(tkey)
+            threat_counter_keys = {to_key(o.name) for o in threat.checks_counters}
+            eff = self._effective_threat(threat)
+            eff_types = eff["types"]
+
+            pressured: list[str] = []
+            offensive_answers: list[str] = []
+            defensive_answers: list[str] = []
+            clean_answers: list[str] = []
+            for p in profiles:
+                mon = p["meta"]
+                pk = tkey in p["counter_keys"] or self._threat_pressures(
+                    eff_types, eff["speed"], p["eff_types"], p["speed"]
+                )
+                if pk:
+                    pressured.append(mon.name)
+                # Offensive answer: a real move (or STAB fallback) hits SE.
+                attack_types = p["offense"] or set(t for t in p["eff_types"] if t)
+                hits_se = any(_type_multiplier_dict(t, eff_types, TYPE_CHART) >= 2.0 for t in attack_types)
+                # Defensive answer: resists a STAB and is weak to none (switch-in).
+                switch_in = _is_switch_in(p["eff_types"], eff_types, TYPE_CHART)
+                beats = p["key"] in threat_counter_keys or hits_se or switch_in
+                if beats:
+                    if hits_se:
+                        offensive_answers.append(mon.name)
+                    if switch_in:
+                        defensive_answers.append(mon.name)
+                    if not pk:
+                        clean_answers.append(mon.name)
+            if not pressured:
+                continue
+            answers = clean_answers or sorted(set(offensive_answers) | set(defensive_answers))
+            if clean_answers:
+                status, severity = "covered", "safe"
+            elif answers:
+                status, severity = "soft", "risky"
+            else:
+                status, severity = "exposed", "danger"
+            rows.append(
+                {
+                    "name": threat.name,
+                    "form": eff["form_name"],
+                    "isMega": eff["is_mega"],
+                    "usage": threat.usage,
+                    "meta_usage": threat.usage,
+                    "pressures": pressured,
+                    "answers": answers,
+                    "offensive": sorted(set(offensive_answers)),
+                    "defensive": sorted(set(defensive_answers)),
+                    "status": status,
+                    "severity": severity,
+                    "source": "pokekipe" if threat_counter_keys else "type-based",
+                    "summary": _threat_summary(pressured, offensive_answers, defensive_answers, clean_answers, status),
+                }
+            )
+        rows.sort(key=lambda r: (-len(r["pressures"]), -r["meta_usage"]))
+        return rows[:20]
 
     def _effective_types_for(self, mon: PokemonMeta, item: str | None) -> list[str]:
         if item:
@@ -682,26 +1218,49 @@ class RecommendationService:
         return result
 
 
-def _archetype_bonus(candidate: PokemonMeta, archetype: Archetype) -> tuple[float, list[str]]:
-    score = 0.0
+def _synergy_component(
+    candidate: PokemonMeta,
+    team_weak: dict[str, int],
+    missing_roles: set[str],
+) -> tuple[float, list[str]]:
+    """Normalized (0..1) team-synergy score: defensive type fit + missing roles.
+
+    - Rewards resisting the types the team is *commonly* weak to (>=2 members).
+    - Rewards covering core roles the team still lacks.
+    - Penalizes adding to a shared weakness (redundant frailty).
+    """
+    from pokemon_anti_meta_builder.constants import TYPE_CHART
+
     reasons: list[str] = []
-    if candidate.name in archetype.preferred_pokemon:
-        score += 18
-        reasons.append(f"fits {archetype.name} core")
-    matching_roles = sorted(set(candidate.roles) & set(archetype.required_roles))
-    if matching_roles:
-        score += 5 * len(matching_roles)
-        reasons.append("covers " + ", ".join(matching_roles))
-    moves = {move.name for move in candidate.moves}
-    matching_moves = sorted(moves & set(archetype.preferred_moves))
-    if matching_moves:
-        score += 3 * len(matching_moves)
-        reasons.append("brings " + ", ".join(matching_moves[:2]))
-    top_item = candidate.items[0].name if candidate.items else ""
-    if top_item in archetype.preferred_items:
-        score += 8
-        reasons.append(f"uses {top_item}")
-    return score, reasons
+    shared = [atk for atk, count in team_weak.items() if count >= 2]
+
+    def_score = 0.0
+    redundancy = 0.0
+    if shared:
+        resisted = added = 0
+        for atk in shared:
+            chart = TYPE_CHART.get(atk, {})
+            mult = 1.0
+            for def_type in candidate.types:
+                mult *= chart.get(def_type, 1.0)
+            if mult < 1.0:
+                resisted += 1
+            elif mult >= 2.0:
+                added += 1
+        def_score = resisted / len(shared)
+        redundancy = added / len(shared)
+        if resisted:
+            reasons.append(f"resiste a {resisted} debolezze condivise del team")
+
+    role_score = 0.0
+    if missing_roles:
+        covered_roles = set(candidate.roles) & missing_roles
+        role_score = len(covered_roles) / len(missing_roles)
+        if covered_roles:
+            reasons.append("copre ruoli mancanti: " + ", ".join(sorted(covered_roles)))
+
+    synergy = 0.55 * def_score + 0.45 * role_score - 0.30 * redundancy
+    return max(0.0, min(1.0, synergy)), reasons
 
 
 def _team_rule_warnings(team: list[PokemonSet]) -> list[str]:
@@ -715,25 +1274,154 @@ def _team_rule_warnings(team: list[PokemonSet]) -> list[str]:
     return warnings
 
 
-def _synergy_notes(archetype: Archetype, selected_meta: list[PokemonMeta], team: list[PokemonSet]) -> list[str]:
+# Core roles a balanced VGC team usually wants covered (archetype-agnostic).
+_CORE_TEAM_ROLES = ("speed-control", "disruption", "protect-user")
+
+# Weather set by a move (move name -> weather), complements ability setters.
+_WEATHER_SETTER_MOVES: dict[str, str] = {
+    "sunny day": "sun",
+    "rain dance": "rain",
+    "sandstorm": "sand",
+    "snowscape": "snow",
+    "hail": "snow",
+    "chilly reception": "snow",
+}
+
+# Abilities that gain a speed boost under a given weather (weather abuser).
+_WEATHER_SPEED_ABILITIES: dict[str, str] = {
+    "chlorophyll": "sun",
+    "swift swim": "rain",
+    "sand rush": "sand",
+    "slush rush": "snow",
+}
+
+_WEATHER_LABEL = {"sun": "Sun", "rain": "Rain", "sand": "Sand", "snow": "Snow"}
+
+
+def _synergy_notes(selected_meta: list[PokemonMeta], team: list[PokemonSet]) -> list[str]:
+    """Data-driven team synergy notes: missing roles, active modes (detected from
+    real abilities/items/moves, not hardcoded species names), and a defensive
+    type profile (shared weaknesses + unresisted threats)."""
     notes: list[str] = []
-    names = {mon.name for mon in selected_meta}
+    if not team:
+        return notes
+
+    # (1) Core role shell.
     roles = {role for member in team for role in member.roles}
-    missing = [role for role in archetype.required_roles if role not in roles]
+    missing = [role for role in _CORE_TEAM_ROLES if role not in roles]
     if missing:
-        notes.append("Missing for archetype: " + ", ".join(missing) + ".")
+        notes.append("Missing core roles: " + ", ".join(missing) + ".")
     else:
-        notes.append(f"{archetype.name} role shell is complete.")
-    if "Incineroar" in names:
-        notes.append("Fake Out + Intimidate pivot gives safer setup turns.")
-    if {"Tyranitar", "Excadrill"} <= names:
-        notes.append("Sand mode active: Tyranitar enables Excadrill pressure.")
-    if "Charizard" in names and any(member.item == "Charizardite Y" for member in team):
-        notes.append("Sun mode active through Mega Charizard Y.")
-    if "Whimsicott" in names or "Talonflame" in names:
-        notes.append("Tailwind mode available.")
-    if "Farigiraf" in names or "Hatterene" in names:
-        notes.append("Trick Room mode available.")
+        notes.append("Core role shell is complete.")
+
+    # (2) Active modes, detected from the actual sets.
+    notes.extend(_mode_notes(team))
+
+    # (3) Defensive type profile: shared weaknesses and unanswered threats.
+    notes.extend(_defensive_profile_notes(selected_meta))
+
+    return notes
+
+
+def _mode_notes(team: list[PokemonSet]) -> list[str]:
+    from pokemon_anti_meta_builder.damage_calc.calculator import _WEATHER_SETTER_ABILITIES
+
+    notes: list[str] = []
+    weather_setters: dict[str, list[str]] = {}
+    speed_abusers: dict[str, list[str]] = {}
+    tailwind: list[str] = []
+    trick_room: list[str] = []
+    intimidate: list[str] = []
+    redirection: list[str] = []
+
+    for member in team:
+        species = member.species
+        ability = (member.ability or "").lower()
+        moves = {(mv or "").lower() for mv in member.moves}
+
+        weather = _WEATHER_SETTER_ABILITIES.get(ability)
+        if not weather:
+            for mv, w in _WEATHER_SETTER_MOVES.items():
+                if mv in moves:
+                    weather = w
+                    break
+        if weather:
+            weather_setters.setdefault(weather, []).append(species)
+
+        abuse = _WEATHER_SPEED_ABILITIES.get(ability)
+        if abuse:
+            speed_abusers.setdefault(abuse, []).append(species)
+
+        if "tailwind" in moves:
+            tailwind.append(species)
+        if "trick room" in moves:
+            trick_room.append(species)
+        if ability == "intimidate":
+            intimidate.append(species)
+        if "follow me" in moves or "rage powder" in moves:
+            redirection.append(species)
+
+    for weather, setters in weather_setters.items():
+        label = _WEATHER_LABEL.get(weather, weather.title())
+        note = f"{label} mode active via {', '.join(setters)}."
+        abusers = speed_abusers.get(weather)
+        if abusers:
+            note = note[:-1] + f"; {', '.join(abusers)} abuse it for speed."
+        notes.append(note)
+    # Speed abusers whose weather isn't being set by the team yet.
+    for weather, abusers in speed_abusers.items():
+        if weather not in weather_setters:
+            label = _WEATHER_LABEL.get(weather, weather.title())
+            notes.append(f"{', '.join(abusers)} want {label} but no setter on team.")
+
+    if tailwind:
+        notes.append(f"Tailwind speed control via {', '.join(tailwind)}.")
+    if trick_room:
+        notes.append(f"Trick Room mode via {', '.join(trick_room)}.")
+    if len(intimidate) >= 2:
+        notes.append(f"Stacked Intimidate pressure ({', '.join(intimidate)}).")
+    elif intimidate:
+        notes.append(f"Intimidate pivot ({intimidate[0]}).")
+    if redirection:
+        notes.append(f"Redirection support via {', '.join(redirection)}.")
+    return notes
+
+
+def _defensive_profile_notes(selected_meta: list[PokemonMeta]) -> list[str]:
+    """Shared weaknesses (>=2 members weak) and unanswered threats (members weak,
+    none resist) computed from team types against the type chart."""
+    from pokemon_anti_meta_builder.constants import TYPE_CHART
+
+    if len(selected_meta) < 2:
+        return []
+
+    notes: list[str] = []
+    unanswered: list[tuple[str, int]] = []
+    shared: list[tuple[str, int]] = []
+    for attack_type, chart in TYPE_CHART.items():
+        weak = 0
+        resist = 0
+        for mon in selected_meta:
+            mult = 1.0
+            for def_type in mon.types:
+                mult *= chart.get(def_type, 1.0)
+            if mult >= 2.0:
+                weak += 1
+            elif mult <= 0.5:
+                resist += 1
+        if weak >= 2 and resist == 0:
+            unanswered.append((attack_type, weak))
+        elif weak >= 2:
+            shared.append((attack_type, weak))
+
+    unanswered.sort(key=lambda x: (-x[1], x[0]))
+    shared.sort(key=lambda x: (-x[1], x[0]))
+    if unanswered:
+        parts = ", ".join(f"{t.title()} ({n}× weak, none resist)" for t, n in unanswered)
+        notes.append("⚠ Unanswered: " + parts + ".")
+    if shared:
+        parts = ", ".join(f"{t.title()} ({n})" for t, n in shared[:4])
+        notes.append("Shared weakness: " + parts + ".")
     return notes
 
 
@@ -796,6 +1484,69 @@ def _type_multiplier_dict(attacking_type: str, defending_types: list[str], type_
     for defending_type in defending_types:
         multiplier *= chart.get(defending_type, 1.0)
     return multiplier
+
+
+def _is_switch_in(defender_types: list[str], attacker_types: list[str], type_chart: dict[str, dict[str, float]]) -> bool:
+    """A defensive switch-in resists at least one of the attacker's STABs and is
+    weak to none of them."""
+    multipliers = [_type_multiplier_dict(t, defender_types, type_chart) for t in attacker_types if t]
+    if not multipliers:
+        return False
+    if any(m > 1.0 for m in multipliers):
+        return False
+    return any(m < 1.0 for m in multipliers)
+
+
+def _threat_summary(
+    pressured: list[str],
+    offensive: list[str],
+    defensive: list[str],
+    clean: list[str],
+    status: str,
+) -> str:
+    """Human-readable Italian summary for a threat-coverage row (feeds the UI
+    cards and the AI coach)."""
+    n = len(pressured)
+    head = f"Preme {n} membr{'o' if n == 1 else 'i'}" if n else "Non preme il team"
+    if status == "covered":
+        bits = []
+        if [m for m in offensive if m in clean]:
+            bits.append(f"colpita da {_join_names([m for m in offensive if m in clean], 2)}")
+        if [m for m in defensive if m in clean]:
+            bits.append(f"murata da {_join_names([m for m in defensive if m in clean], 2)}")
+        if not bits:
+            bits.append(f"contrata da {_join_names(clean, 2)}")
+        return head + ". Risposta pulita: " + "; ".join(bits) + "."
+    if status == "soft":
+        answers = sorted(set(offensive) | set(defensive))
+        return head + f". Solo risposte sotto pressione: {_join_names(answers, 3)}."
+    return head + ". Nessuna risposta nel team."
+
+
+def _join_names(names: list[str], limit: int) -> str:
+    if not names:
+        return "—"
+    if len(names) <= limit:
+        return ", ".join(names)
+    return ", ".join(names[:limit]) + f" e altri {len(names) - limit}"
+
+
+def _render_threat_report(threats: list[dict[str, Any]]) -> str:
+    """Plain-text threat report rendered from the unified coverage rows."""
+    if not threats:
+        return "Aggiungi Pokémon per iniziare l'analisi matchup."
+    labels = {"danger": "Scoperte", "risky": "Da tenere d'occhio", "safe": "Coperte"}
+    lines: list[str] = ["Threat report"]
+    for severity in ("danger", "risky", "safe"):
+        section = [t for t in threats if t["severity"] == severity]
+        if not section:
+            continue
+        lines.append("")
+        lines.append(f"{labels[severity]}:")
+        for t in section:
+            label = t.get("form") or t["name"]
+            lines.append(f"  - {label} ({t['meta_usage']:.1f}%) — {t['summary']}")
+    return "\n".join(lines).strip()
 
 
 def _stab_super_effective(attacker: PokemonMeta, defender: PokemonMeta, type_chart: dict[str, dict[str, float]]) -> bool:

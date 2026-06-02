@@ -1,3 +1,3 @@
-from pokemon_anti_meta_builder.ev_optimizer.optimizer import EVGoal, EVOptimizer
+from pokemon_anti_meta_builder.ev_optimizer.service import EVTunerService
 
-__all__ = ["EVGoal", "EVOptimizer"]
+__all__ = ["EVTunerService"]

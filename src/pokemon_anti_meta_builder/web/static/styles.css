@@ -1,23 +1,27 @@
 :root {
   color-scheme: dark;
-  --bg: #1a1d22;
-  --bg-soft: #1f232a;
-  --panel: #232830;
-  --panel-soft: #2a303a;
-  --line: #333a44;
-  --line-strong: #424a56;
-  --text: #f3f4f6;
-  --text-soft: #d1d5db;
-  --muted: #9aa3ad;
-  --red: #d4282b;
-  --red-soft: #f4b3b4;
-  --green: #4ade80;
-  --green-soft: #a7f3d0;
-  --gold: #fbbf24;
-  --gold-soft: #fde68a;
-  --blue: #60a5fa;
-  --chip: #2f3742;
-  --shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  /* Linear.app design system —
+     near-black canvas + charcoal surfaces + lavender accent. */
+  --bg: #010102;
+  --bg-soft: #0a0b0c;
+  --panel: #0f1011;
+  --panel-soft: #141516;
+  --line: #23252a;
+  --line-strong: #34343a;
+  --text: #f7f8f8;
+  --text-soft: #d0d6e0;
+  --muted: #8a8f98;
+  --muted-soft: #62666d;
+  /* Accent (single chromatic Linear lavender) — replaces the old red */
+  --red: #5e6ad2;
+  --red-soft: #828fff;
+  --green: #27a644;
+  --green-soft: #6ee69d;
+  --gold: #f5b95a;
+  --gold-soft: #ffd58a;
+  --blue: #7a7fad;
+  --chip: #18191a;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 
   /* Type colors (canonical) */
   --t-normal: #a8a878;
@@ -48,9 +52,19 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  /* Linear typography: SF Pro Display fallback for display, system for body */
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "Inter Tight", "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
+  letter-spacing: -0.05px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.4px;
 }
 
 button,
@@ -62,31 +76,37 @@ textarea {
 }
 
 button {
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
-  min-height: 34px;
-  border-radius: 6px;
-  padding: 0 12px;
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 0 14px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: -0.05px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 button:hover {
-  border-color: var(--red);
+  border-color: var(--line-strong);
   background: var(--panel-soft);
+  color: var(--red-soft);
 }
 
 button.primary {
   background: var(--red);
   border-color: var(--red);
   color: #fff;
-  font-weight: 600;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 button.primary:hover {
-  background: #b51f22;
-  border-color: #b51f22;
+  background: var(--red-soft);
+  border-color: var(--red-soft);
+  color: #fff;
 }
 
 select,
@@ -96,22 +116,30 @@ input[type="search"],
 input[type="number"],
 textarea {
   border: 1px solid var(--line);
-  background: var(--bg-soft);
+  background: var(--panel);
   color: var(--text);
-  min-height: 36px;
-  border-radius: 6px;
+  min-height: 32px;
+  border-radius: 8px;
   padding: 0 10px;
+  font-size: 13px;
+  letter-spacing: -0.05px;
+  transition: border-color 0.15s;
+}
+
+select:hover, .search:hover, input:hover, textarea:hover {
+  border-color: var(--line-strong);
 }
 
 select:focus,
 input:focus,
 textarea:focus {
   outline: 2px solid var(--red);
-  outline-offset: -2px;
+  outline-offset: -1px;
+  border-color: var(--red);
 }
 
 .topbar {
-  background: linear-gradient(180deg, #1a1d22 0%, #14171c 100%);
+  background: linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
   border-bottom: 3px solid var(--red);
   padding: 14px 22px;
   display: flex;
@@ -827,6 +855,33 @@ textarea {
   border: 1px dashed var(--line);
 }
 
+.counter-row:has(.counter-why) {
+  align-items: start;
+}
+
+.counter-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.counter-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.why-chip {
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text-soft, #9aa0a6);
+}
+
 .counter-section-title {
   font-size: 10px;
   text-transform: uppercase;
@@ -876,6 +931,30 @@ textarea {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+.calc-quick-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.calc-quick-label {
+  font-size: 10px;
+  color: var(--muted);
+  display: grid;
+  gap: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.calc-quick-label select {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (max-width: 700px) {
+  .calc-quick-row { grid-template-columns: 1fr; }
 }
 
 .calc-evs {
@@ -1279,6 +1358,379 @@ textarea {
   padding: 6px 8px;
 }
 
+/* TOAST ------------------------------------------- */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 200;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--red);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-width: 360px;
+}
+.toast.hidden { display: none; }
+.toast.success { border-left-color: var(--green); }
+.toast.error { border-left-color: var(--red); }
+
+/* SIDEBAR REORG ----------------------------------- */
+/* Saved teams as a compact dropdown in the topbar */
+.saved-teams-dropdown {
+  position: relative;
+}
+
+.saved-teams-toggle {
+  width: 100%;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.saved-teams-toggle:hover { color: var(--text); background: var(--panel); }
+.saved-teams-toggle .caret { font-size: 10px; color: var(--muted); }
+.savedTeamsCount { font-size: 11px; }
+
+.saved-teams-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  z-index: 50;
+  display: grid;
+  gap: 6px;
+}
+
+.saved-teams-menu.hidden { display: none; }
+
+
+.catalog-filter-toggle {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.catalog-filter-toggle:hover {
+  color: var(--text);
+  background: var(--panel-soft);
+}
+
+.search-row {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.search-mode {
+  display: flex;
+  gap: 2px;
+}
+
+.search-mode-btn {
+  flex: 1;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  padding: 4px 0;
+  border-radius: 4px;
+}
+
+.search-mode-btn.active {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+
+.catalog-filter-panel {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.catalog-filter-panel.hidden { display: none; }
+
+.catalog-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.catalog-filter-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 44px;
+}
+
+.filter-chip {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.filter-chip:hover { color: var(--text); }
+
+.filter-chip.active {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+
+.catalog-type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.catalog-type-chips .filter-chip {
+  font-size: 9px;
+  padding: 2px 6px;
+  text-transform: capitalize;
+}
+
+/* EV TUNER ---------------------------------------- */
+.evtuner-tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.evtab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  color: var(--muted);
+  border-radius: 6px 6px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.evtab:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+
+.evtab.active {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--line);
+  border-bottom: 1px solid var(--panel);
+  margin-bottom: -1px;
+}
+
+.evt-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.evt-assumptions {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.evt-spread {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 10px;
+  background: var(--panel-soft);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.evt-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.evt-stat {
+  text-align: center;
+  font-size: 11px;
+  background: var(--panel-soft);
+  padding: 4px 2px;
+  border-radius: 4px;
+}
+
+.evt-stat-name {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.evt-stat-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.evt-narration {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg-soft);
+  border-left: 2px solid var(--red);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.evt-suggestions {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.evt-apply-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.evt-manual-spread {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+.evt-manual-spread.hidden {
+  display: none;
+}
+
+.evt-manual-total.invalid {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.evt-universal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.evt-universal-buttons button {
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+.sm-rec {
+  background: rgba(255, 200, 0, 0.08);
+  border: 1px solid rgba(255, 200, 0, 0.35);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+.sm-rec.hidden { display: none; }
+
+.sm-report-box {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.sm-report-box .evt-uni-list {
+  max-height: none;
+}
+
+.sm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.sm-prio {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.evt-universal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.evt-uni-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.evt-uni-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .evt-universal-grid { grid-template-columns: 1fr; }
+}
+
+.slot-tune {
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  min-height: 22px !important;
+}
+
 /* Responsive --------------------------------------*/
 @media (max-width: 1100px) {
   .app {
@@ -1295,3 +1747,6 @@ textarea {
     width: 100%;
   }
 }
+
+/* B6 — mega type-fallback note on a member's counter card */
+.mega-fallback-note { display: block; margin: 2px 0 6px; font-size: 12px; font-style: italic; }

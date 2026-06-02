@@ -32,6 +32,10 @@ data/raw/reg_ma_pokekipe.csv
 data/raw/showdown_dex.json
 data/raw/showdown_moves.json
 data/raw/showdown_learnsets.json
+data/raw/pikalytics_sets.json
+
+# Saved teams (local user data)
+data/teams/
 
 # Browser vendor bundle (regenerate with sync-calc)
 src/pokemon_anti_meta_builder/web/static/vendor/

@@ -16,6 +16,7 @@ The move library is loaded dynamically from `data/raw/showdown_moves.json`
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 from dataclasses import dataclass, field
 from math import floor
@@ -217,6 +218,7 @@ class Combatant:
     boosts: dict[str, int] = field(default_factory=lambda: {k: 0 for k in ("atk", "def", "spa", "spd", "spe")})
     tera_type: str | None = None
     is_burned: bool = False
+    ability: str = ""
 
     def stat(self, key: str) -> int:
         """Compute the live stat using the Pokemon Champions EV scale (0-32).
@@ -259,6 +261,7 @@ class Field:
     aurora_veil: bool = False
     spread: bool = True  # doubles by default
     crit: bool = False
+    ignore_ability_weather: bool = False  # skip auto-weather from Drought/etc.
 
 
 @dataclass
@@ -284,6 +287,41 @@ class CalcResult:
         }
 
 
+def _ability(c: Combatant) -> str:
+    return (c.ability or "").strip().lower()
+
+
+# Type-immunity abilities: {ability_name_lower: move_type that becomes 0x damage}
+# Auto-applied weather from on-entry abilities (when field has no weather set)
+_WEATHER_SETTER_ABILITIES: dict[str, str] = {
+    "drought": "sun",
+    "orichalcum pulse": "sun",
+    "mega solar": "sun",
+    "mega sol": "sun",
+    "megasol": "sun",
+    "drizzle": "rain",
+    "sea of pearl": "rain",
+    "sand stream": "sand",
+    "snow warning": "snow",
+    "sleet rush": "snow",
+}
+
+
+_IMMUNITY_ABILITIES: dict[str, str] = {
+    "levitate": "ground",
+    "earth eater": "ground",
+    "flash fire": "fire",
+    "well-baked body": "fire",
+    "water absorb": "water",
+    "dry skin": "water",
+    "storm drain": "water",
+    "volt absorb": "electric",
+    "lightning rod": "electric",
+    "motor drive": "electric",
+    "sap sipper": "grass",
+}
+
+
 class DamageCalculator:
     def calculate(self, attacker: Combatant, defender: Combatant, move_name: str, field: Field | None = None) -> CalcResult:
         field = field or Field()
@@ -294,10 +332,45 @@ class DamageCalculator:
         category = move["category"]
         bp = int(move["bp"])
         move_type = move["type"]
+        atk_ab = _ability(attacker)
+        def_ab = _ability(defender)
+        mold_breaker = atk_ab in ("mold breaker", "teravolt", "turboblaze")
+        # Auto-apply weather from on-entry abilities when field is neutral.
+        if not field.weather and not field.ignore_ability_weather:
+            atk_setter = _WEATHER_SETTER_ABILITIES.get(atk_ab)
+            def_setter = _WEATHER_SETTER_ABILITIES.get(def_ab)
+            if atk_setter:
+                field = dataclasses.replace(field, weather=atk_setter)
+            elif def_setter:
+                field = dataclasses.replace(field, weather=def_setter)
+
+        # Type-change attacker abilities applied to Normal-type moves
+        if move_type == "normal":
+            if atk_ab == "aerilate":
+                move_type = "flying"; bp = int(bp * 1.2)
+            elif atk_ab == "pixilate":
+                move_type = "fairy"; bp = int(bp * 1.2)
+            elif atk_ab == "refrigerate":
+                move_type = "ice"; bp = int(bp * 1.2)
+            elif atk_ab == "galvanize":
+                move_type = "electric"; bp = int(bp * 1.2)
+        if atk_ab == "liquid voice" and (move.get("flags") or {}).get("sound"):
+            move_type = "water"
+
         if move_type == "normal" and move_name == "Weather Ball":
             move_type = _weather_ball_type(field.weather)
             if field.weather:
                 bp = 100
+
+        # Type-immunity defensive abilities (skipped if attacker has Mold Breaker)
+        if not mold_breaker and _IMMUNITY_ABILITIES.get(def_ab) == move_type:
+            rolls = [0] * 16
+            hp = defender.stat("hp") or 1
+            return CalcResult(
+                move=move_name, type=move_type, category=category,
+                rolls=rolls, percentages=[0.0] * 16,
+                ko_chance=f"{defender.name or 'defender'} immune via {def_ab.title()}",
+            )
 
         if move.get("uses_defense_as_attack"):
             a_stat = _boosted(attacker.stat("def"), attacker.boosts.get("def", 0))
@@ -337,6 +410,9 @@ class DamageCalculator:
         stab = 1.5 if move_type in attacker_types else 1.0
         if attacker.tera_type and move_type in attacker.types and move_type == attacker.tera_type:
             stab = 2.0
+        # Adaptability bumps STAB to 2.0 (or 2.25 with same-type tera)
+        if atk_ab == "adaptability" and move_type in attacker.types:
+            stab = 2.25 if stab == 2.0 else 2.0
 
         defender_types = [defender.tera_type] if defender.tera_type else defender.types
         type_multiplier = 1.0
@@ -346,6 +422,29 @@ class DamageCalculator:
 
         damage_after_stab = floor(damage_base * stab)
         damage_after_type = floor(damage_after_stab * type_multiplier)
+
+        # Defensive damage-reduction abilities
+        if not mold_breaker:
+            if type_multiplier > 1.0 and def_ab in ("filter", "solid rock", "prism armor"):
+                damage_after_type = floor(damage_after_type * 0.75)
+            if def_ab == "thick fat" and move_type in ("fire", "ice"):
+                damage_after_type = floor(damage_after_type * 0.5)
+            if def_ab == "heatproof" and move_type == "fire":
+                damage_after_type = floor(damage_after_type * 0.5)
+            if def_ab == "fluffy" and (move.get("flags") or {}).get("contact"):
+                damage_after_type = floor(damage_after_type * 0.5)
+            if def_ab in ("multiscale", "shadow shield"):
+                # Assume full HP (we can't track HP between calcs)
+                damage_after_type = floor(damage_after_type * 0.5)
+        # Tinted Lens doubles NVE damage
+        if atk_ab == "tinted lens" and 0 < type_multiplier < 1.0:
+            damage_after_type = floor(damage_after_type * 2.0)
+        # Tough Claws +30% on contact moves
+        if atk_ab == "tough claws" and (move.get("flags") or {}).get("contact"):
+            damage_after_type = floor(damage_after_type * 1.3)
+        # Sand Force: rock/ground/steel +30% in sand
+        if atk_ab == "sand force" and field.weather == "sand" and move_type in ("rock", "ground", "steel"):
+            damage_after_type = floor(damage_after_type * 1.3)
 
         rolls = [floor(damage_after_type * roll / 100) for roll in range(85, 101)]
         hp = defender.stat("hp") or 1

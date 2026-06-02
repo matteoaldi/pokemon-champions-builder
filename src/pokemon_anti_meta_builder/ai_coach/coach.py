@@ -26,7 +26,7 @@ SETUP_HINT = (
 class AICoach:
     """Gemini-backed VGC Reg M-A coach.
 
-    The deterministic engine (TeamBuilder/ThreatAnalyzer/RecommendationService)
+    The deterministic engine (TeamBuilder/RecommendationService)
     owns legality, scoring and validation. Gemini only reads the structured
     state we computed and gives a human-readable summary + game plan.
     """

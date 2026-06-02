@@ -241,43 +241,64 @@ def _secondary(value: Any) -> Any:
     return None
 
 
-SMOGON_CALC_URLS = (
-    "https://cdn.jsdelivr.net/npm/@smogon/calc/dist/index.iife.js",
-    "https://unpkg.com/@smogon/calc/dist/index.iife.js",
-    "https://cdn.jsdelivr.net/npm/@smogon/calc/dist/index.global.js",
+# @smogon/calc ships as CommonJS, not a ready-to-use browser IIFE, so there is no
+# CDN file we can just download. Instead we build a self-contained IIFE bundle from
+# npm with esbuild and vendor it. The resulting file assigns the whole module to the
+# `window.calc` global the UI reads. A pre-built copy is committed under web/static/vendor/
+# so the calculator always works; this command only regenerates it.
+_CALC_ENTRY_JS = (
+    "// Expose the full @smogon/calc module as the window.calc global the UI reads.\n"
+    "import * as calc from '@smogon/calc';\n"
+    "window.calc = calc;\n"
 )
 
 
 def sync_smogon_calc_bundle(
     output_path: str | Path = "src/pokemon_anti_meta_builder/web/static/vendor/calc.js",
-    insecure_ssl: bool = False,
+    insecure_ssl: bool = False,  # noqa: ARG001 - kept for CLI signature compatibility
 ) -> Path:
-    """Best-effort download of the @smogon/calc browser bundle.
+    """Build the @smogon/calc browser bundle (IIFE) and vendor it locally.
 
-    Smogon does not always publish a ready-to-use IIFE bundle; this function
-    tries a few well-known CDN URLs in order and saves the first success.
-    Falls back with a clear error otherwise. The fallback is fine: the UI
-    keeps using the Python lite calc.
+    Requires Node's `npm`/`npx` on PATH. Installs @smogon/calc + esbuild in a
+    temporary directory, bundles an entry that exposes `window.calc`, and writes
+    the minified IIFE to `output_path`. The committed bundle means the UI's
+    Smogon damage calculator works out of the box; run this only to refresh it.
     """
-    context = ssl._create_unverified_context() if insecure_ssl else None
-    last_error: Exception | None = None
-    for url in SMOGON_CALC_URLS:
-        try:
-            request = Request(url, headers={"User-Agent": "pokemon-anti-meta-builder/0.1"})
-            with urlopen(request, timeout=60, context=context) as response:
-                data = response.read()
-            destination = Path(output_path)
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(data)
-            return destination
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            continue
-    raise RuntimeError(
-        f"Could not download @smogon/calc bundle from known CDNs ({last_error}). "
-        "Build one locally via `npx esbuild @smogon/calc/index.ts --bundle --format=iife "
-        "--global-name=calc --outfile=src/pokemon_anti_meta_builder/web/static/vendor/calc.js`."
-    )
+    import shutil
+    import subprocess
+    import tempfile
+
+    if shutil.which("npm") is None or shutil.which("npx") is None:
+        raise RuntimeError(
+            "Building the @smogon/calc bundle needs Node's npm/npx on PATH. "
+            "Install Node.js, then re-run `sync-calc`. (A pre-built bundle is "
+            "already committed under web/static/vendor/calc.js, so this is only "
+            "needed to refresh it.)"
+        )
+
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix="calc-bundle-") as tmp:
+        tmp_path = Path(tmp)
+        (tmp_path / "entry.js").write_text(_CALC_ENTRY_JS, encoding="utf-8")
+        subprocess.run(["npm", "init", "-y"], cwd=tmp, check=True, capture_output=True)
+        subprocess.run(
+            ["npm", "install", "@smogon/calc", "esbuild"],
+            cwd=tmp, check=True, capture_output=True,
+        )
+        subprocess.run(
+            [
+                "npx", "esbuild", "entry.js",
+                "--bundle", "--format=iife", "--platform=browser", "--minify",
+                f"--outfile={destination.resolve()}",
+            ],
+            cwd=tmp, check=True, capture_output=True,
+        )
+
+    if not destination.exists() or destination.stat().st_size == 0:
+        raise RuntimeError("esbuild produced no output; @smogon/calc bundle not written.")
+    return destination
 
 
 def load_showdown_dex(path: str | Path) -> list[dict[str, Any]]:
