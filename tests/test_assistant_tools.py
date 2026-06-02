@@ -33,3 +33,24 @@ class TestFindByMoves(unittest.TestCase):
     def test_unknown_tool_name_errors(self):
         out = self.reg.call("does_not_exist", {})
         self.assertFalse(out["ok"])
+
+
+class TestSearchAndLearnset(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_search_by_type(self):
+        out = self.reg.call("search_pokemon", {"type": "fairy"})
+        self.assertTrue(out["ok"])
+        self.assertTrue(all("fairy" in [t.lower() for t in p["types"]] for p in out["pokemon"]))
+
+    def test_search_min_usage_filters(self):
+        out = self.reg.call("search_pokemon", {"min_usage": 5.0})
+        self.assertTrue(all(p["usage"] >= 5.0 for p in out["pokemon"]))
+
+    def test_get_learnset(self):
+        out = self.reg.call("get_learnset", {"species": "Garchomp"})
+        self.assertTrue(out["ok"])
+        self.assertIn("earthquake", [m.lower() for m in out["moves"]])

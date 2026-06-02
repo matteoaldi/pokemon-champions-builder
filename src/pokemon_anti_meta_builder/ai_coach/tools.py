@@ -18,6 +18,8 @@ class ToolRegistry:
         self.ev_tuner = ev_tuner
         self._tools: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
             "find_pokemon_by_moves": self._find_pokemon_by_moves,
+            "search_pokemon": self._search_pokemon,
+            "get_learnset": self._get_learnset,
         }
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -45,3 +47,26 @@ class ToolRegistry:
                     seen.add(k)
                     ordered.append(name)
         return {"ok": True, "moves": moves, "require_all": bool(require_all), "species": ordered[:30]}
+
+    def _search_pokemon(self, args: dict[str, Any]) -> dict[str, Any]:
+        want_type = (args.get("type") or "").lower().strip()
+        want_role = (args.get("role") or "").lower().strip()
+        min_usage = float(args.get("min_usage") or 0.0)
+        out = []
+        for p in self.service.catalog()["pokemon"]:
+            if want_type and want_type not in [t.lower() for t in p["types"]]:
+                continue
+            if want_role and want_role not in [r.lower() for r in (p.get("roles") or [])]:
+                continue
+            if (p.get("usage") or 0.0) < min_usage:
+                continue
+            out.append({"name": p["name"], "types": p["types"], "usage": p.get("usage"), "roles": p.get("roles")})
+        out.sort(key=lambda x: -(x["usage"] or 0.0))
+        return {"ok": True, "count": len(out), "pokemon": out[:40]}
+
+    def _get_learnset(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        if not species:
+            return {"ok": False, "error": "missing species"}
+        moves = self.service.learnset_for(species)
+        return {"ok": True, "species": species, "moves": moves}
