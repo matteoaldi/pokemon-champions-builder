@@ -20,6 +20,9 @@ class ToolRegistry:
             "find_pokemon_by_moves": self._find_pokemon_by_moves,
             "search_pokemon": self._search_pokemon,
             "get_learnset": self._get_learnset,
+            "who_counters": self._who_counters,
+            "countered_by": self._countered_by,
+            "get_set": self._get_set,
         }
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -70,3 +73,31 @@ class ToolRegistry:
             return {"ok": False, "error": "missing species"}
         moves = self.service.learnset_for(species)
         return {"ok": True, "species": species, "moves": moves}
+
+    def _who_counters(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        if not species:
+            return {"ok": False, "error": "missing species"}
+        data = self.service.counter_lookup(species)
+        if data.get("notFound"):
+            return {"ok": False, "error": f"unknown Pokemon: {species}"}
+        return {"ok": True, "name": data["name"], "types": data["types"],
+                "source": data["source"], "counters": data["counters"]}
+
+    def _countered_by(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        if not species:
+            return {"ok": False, "error": "missing species"}
+        data = self.service.countered_by(species)
+        result: dict[str, Any] = {"ok": True}
+        result.update(data)
+        return result
+
+    def _get_set(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        if not species:
+            return {"ok": False, "error": "missing species"}
+        payload = self.service.combatant_payload(species)
+        if payload.get("error"):
+            return {"ok": False, "error": payload["error"]}
+        return {"ok": True, "set": payload}

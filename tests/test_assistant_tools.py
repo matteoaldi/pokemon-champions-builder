@@ -54,3 +54,26 @@ class TestSearchAndLearnset(unittest.TestCase):
         out = self.reg.call("get_learnset", {"species": "Garchomp"})
         self.assertTrue(out["ok"])
         self.assertIn("earthquake", [m.lower() for m in out["moves"]])
+
+
+class TestCountersAndSet(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_who_counters_returns_reasons(self):
+        out = self.reg.call("who_counters", {"species": "Garchomp"})
+        self.assertTrue(out["ok"])
+        self.assertTrue(out["counters"])
+        self.assertIn("reasons", out["counters"][0])
+
+    def test_countered_by(self):
+        out = self.reg.call("countered_by", {"species": "Garchomp"})
+        self.assertTrue(out["ok"])
+
+    def test_get_set_has_moves_and_stats(self):
+        out = self.reg.call("get_set", {"species": "Incineroar"})
+        self.assertTrue(out["ok"])
+        self.assertIn("moves", out["set"])
+        self.assertIn("baseStats", out["set"])
