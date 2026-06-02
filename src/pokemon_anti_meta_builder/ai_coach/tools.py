@@ -23,6 +23,7 @@ class ToolRegistry:
             "who_counters": self._who_counters,
             "countered_by": self._countered_by,
             "get_set": self._get_set,
+            "min_speed_to_outspeed": self._min_speed_to_outspeed,
         }
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -101,3 +102,32 @@ class ToolRegistry:
         if payload.get("error"):
             return {"ok": False, "error": payload["error"]}
         return {"ok": True, "set": payload}
+
+    def _min_speed_to_outspeed(self, args: dict[str, Any]) -> dict[str, Any]:
+        species = (args.get("species") or "").strip()
+        target = (args.get("target") or "").strip()
+        if not species or not target:
+            return {"ok": False, "error": "need species and target"}
+        payload = {
+            "mode": "outspeed",
+            "ourSpecies": species,
+            "targetSpecies": target,
+            "condition": args.get("condition") or "none",
+            "ourBoost": int(args.get("our_boost") or 0),
+            "targetBoost": int(args.get("target_boost") or 0),
+        }
+        if args.get("target_max_speed"):
+            payload["targetSpreadManual"] = {"nature": "Jolly", "evs": {"spe": 32}}
+        out = self.ev_tuner.optimize(payload)
+        if not out.get("ok"):
+            return out
+        result = out["result"]
+        proposal = None
+        if result.get("feasible"):
+            proposal = {
+                "species": species,
+                "nature": result.get("nature"),
+                "evs": result.get("evs", {}),
+                "note": f"{result['evs'].get('spe', 0)} Spe EV per superare {target}",
+            }
+        return {"ok": True, "result": result, "assumptions": out.get("assumptions"), "proposal": proposal}

@@ -77,3 +77,23 @@ class TestCountersAndSet(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertIn("moves", out["set"])
         self.assertIn("baseStats", out["set"])
+
+
+class TestOutspeedTool(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_min_speed_to_outspeed_returns_result(self):
+        out = self.reg.call("min_speed_to_outspeed", {
+            "species": "Charizard", "target": "Aerodactyl",
+            "target_max_speed": True, "our_boost": 1,
+        })
+        self.assertTrue(out["ok"])
+        self.assertIn("evs", out["result"])
+        self.assertIn("proposal", out)
+
+    def test_missing_species_errors(self):
+        out = self.reg.call("min_speed_to_outspeed", {"target": "Aerodactyl"})
+        self.assertFalse(out["ok"])
