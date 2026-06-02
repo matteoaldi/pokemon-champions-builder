@@ -121,3 +121,22 @@ class TestSurviveOhkoTools(unittest.TestCase):
     def test_survive_missing_move_errors(self):
         out = self.reg.call("min_evs_to_survive", {"species": "Incineroar", "attacker": "Garchomp"})
         self.assertFalse(out["ok"])
+
+
+class TestToolDeclarations(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_declarations_cover_every_tool(self):
+        decls = self.reg.declarations()
+        names = {d["name"] for d in decls}
+        self.assertEqual(names, set(self.reg.tool_names()))
+
+    def test_declaration_shape(self):
+        for d in self.reg.declarations():
+            self.assertIn("name", d)
+            self.assertIn("description", d)
+            self.assertIn("parameters", d)
+            self.assertEqual(d["parameters"]["type"], "object")

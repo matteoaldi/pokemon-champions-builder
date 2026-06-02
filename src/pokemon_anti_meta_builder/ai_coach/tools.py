@@ -28,6 +28,48 @@ class ToolRegistry:
             "min_evs_to_ohko": self._min_evs_to_ohko,
         }
 
+    def tool_names(self) -> list[str]:
+        return list(self._tools.keys())
+
+    def declarations(self) -> list[dict[str, Any]]:
+        S = {"type": "string"}
+        return [
+            {"name": "find_pokemon_by_moves",
+             "description": "Pokémon che imparano le mosse date. require_all=true -> intersezione (tutte), false -> unione.",
+             "parameters": {"type": "object", "properties": {
+                 "moves": {"type": "array", "items": S}, "require_all": {"type": "boolean"}}, "required": ["moves"]}},
+            {"name": "search_pokemon",
+             "description": "Cerca Pokémon del meta per tipo, ruolo e usage minimo.",
+             "parameters": {"type": "object", "properties": {
+                 "type": S, "role": S, "min_usage": {"type": "number"}}}},
+            {"name": "get_learnset",
+             "description": "Tutte le mosse legali che un Pokémon impara.",
+             "parameters": {"type": "object", "properties": {"species": S}, "required": ["species"]}},
+            {"name": "who_counters",
+             "description": "Chi counter-a (batte) il Pokémon dato, con motivi (mosse/tipi/speed).",
+             "parameters": {"type": "object", "properties": {"species": S}, "required": ["species"]}},
+            {"name": "countered_by",
+             "description": "Quali Pokémon il soggetto batte (inverso di who_counters).",
+             "parameters": {"type": "object", "properties": {"species": S}, "required": ["species"]}},
+            {"name": "get_set",
+             "description": "Set reale (item/ability/mosse/EV/nature) e base stats di un Pokémon.",
+             "parameters": {"type": "object", "properties": {"species": S}, "required": ["species"]}},
+            {"name": "min_speed_to_outspeed",
+             "description": "EV Speed minimi per superare un bersaglio. target_max_speed=true assume il bersaglio a max Speed. our_boost/target_boost = stage di Speed (+1, +2...). condition: none/tailwind_me/tailwind_opp/scarf_me/scarf_opp/paralysis_opp.",
+             "parameters": {"type": "object", "properties": {
+                 "species": S, "target": S, "target_max_speed": {"type": "boolean"},
+                 "our_boost": {"type": "number"}, "target_boost": {"type": "number"}, "condition": S},
+                 "required": ["species", "target"]}},
+            {"name": "min_evs_to_survive",
+             "description": "EV difensivi minimi per sopravvivere a una mossa di un attaccante. threshold: guaranteed/high/median.",
+             "parameters": {"type": "object", "properties": {
+                 "species": S, "attacker": S, "move": S, "threshold": S}, "required": ["species", "attacker", "move"]}},
+            {"name": "min_evs_to_ohko",
+             "description": "EV offensivi minimi per OHKO/2HKO un bersaglio con una mossa. goal: ohko/2hko.",
+             "parameters": {"type": "object", "properties": {
+                 "species": S, "target": S, "move": S, "goal": S}, "required": ["species", "target", "move"]}},
+        ]
+
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         fn = self._tools.get(name)
         if fn is None:
