@@ -51,7 +51,6 @@ const els = {
   assistantInput: document.querySelector("#assistantInput"),
   assistantForm: document.querySelector("#assistantForm"),
   assistantProposals: document.querySelector("#assistantProposals"),
-  refreshCountersButton: document.querySelector("#refreshCountersButton"),
   calcPanel: document.querySelector("#calcPanel"),
   lookupInput: document.querySelector("#lookupInput"),
   lookupOptions: document.querySelector("#lookupOptions"),
