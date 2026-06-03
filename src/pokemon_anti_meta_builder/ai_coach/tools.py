@@ -16,6 +16,7 @@ class ToolRegistry:
     def __init__(self, service, ev_tuner) -> None:
         self.service = service
         self.ev_tuner = ev_tuner
+        self._mega_alias = self._build_mega_alias()
         self._tools: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
             "find_pokemon_by_moves": self._find_pokemon_by_moves,
             "search_pokemon": self._search_pokemon,
@@ -30,6 +31,41 @@ class ToolRegistry:
 
     def tool_names(self) -> list[str]:
         return list(self._tools.keys())
+
+    def _build_mega_alias(self) -> dict[str, str]:
+        """Map to_key(colloquial Mega name) -> canonical mega form name.
+
+        Handles "Charizard X" / "Mega Charizard X" / "Charizard Mega X" ->
+        "Charizard-Mega-X", and "Mega Garchomp" -> "Garchomp-Mega", WITHOUT ever
+        shadowing a plain base-species name (so "Garchomp" stays "Garchomp")."""
+        alias: dict[str, str] = {}
+        for form in getattr(self.service, "mega_forms", []) or []:
+            name = form.get("name") or ""
+            base = form.get("base_species") or ""
+            if not name or not base:
+                continue
+            parts = name.split("-")  # e.g. ["Charizard","Mega","X"] or ["Garchomp","Mega"]
+            suffix = parts[2] if len(parts) > 2 else ""
+            base_key = to_key(base)
+            candidates = {
+                to_key(name),                        # "charizardmegax" / "garchompmega"
+                to_key(f"mega {base} {suffix}"),     # "megacharizardx" / "megagarchomp"
+                to_key(f"{base} mega {suffix}"),     # "charizardmegax" / "garchompmega"
+            }
+            if suffix:
+                candidates.add(to_key(f"{base} {suffix}"))  # "charizardx"
+            for key in candidates:
+                # never shadow the base species; first writer wins for any collision
+                if key and key != base_key:
+                    alias.setdefault(key, name)
+        return alias
+
+    def resolve_species(self, name: str) -> str:
+        """Resolve a colloquial Mega name to its canonical form; pass through
+        anything already canonical / unknown / non-Mega unchanged."""
+        if not name:
+            return name
+        return self._mega_alias.get(to_key(name), name)
 
     def declarations(self) -> list[dict[str, Any]]:
         S = {"type": "string"}
@@ -114,14 +150,14 @@ class ToolRegistry:
         return {"ok": True, "count": len(out), "pokemon": out[:40]}
 
     def _get_learnset(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
         if not species:
             return {"ok": False, "error": "missing species"}
         moves = self.service.learnset_for(species)
         return {"ok": True, "species": species, "moves": moves}
 
     def _who_counters(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
         if not species:
             return {"ok": False, "error": "missing species"}
         data = self.service.counter_lookup(species)
@@ -131,7 +167,7 @@ class ToolRegistry:
                 "source": data["source"], "counters": data["counters"]}
 
     def _countered_by(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
         if not species:
             return {"ok": False, "error": "missing species"}
         data = self.service.countered_by(species)
@@ -140,7 +176,7 @@ class ToolRegistry:
         return result
 
     def _get_set(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
         if not species:
             return {"ok": False, "error": "missing species"}
         payload = self.service.combatant_payload(species)
@@ -149,8 +185,8 @@ class ToolRegistry:
         return {"ok": True, "set": payload}
 
     def _min_speed_to_outspeed(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
-        target = (args.get("target") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
+        target = self.resolve_species((args.get("target") or "").strip())
         if not species or not target:
             return {"ok": False, "error": "need species and target"}
         nature = (args.get("nature") or "").strip()
@@ -181,8 +217,8 @@ class ToolRegistry:
         return {"ok": True, "result": result, "assumptions": out.get("assumptions"), "proposal": proposal}
 
     def _min_evs_to_survive(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
-        attacker = (args.get("attacker") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
+        attacker = self.resolve_species((args.get("attacker") or "").strip())
         move = (args.get("move") or "").strip()
         if not species or not attacker or not move:
             return {"ok": False, "error": "need species, attacker and move"}
@@ -197,8 +233,8 @@ class ToolRegistry:
         return {"ok": True, "result": out["result"], "assumptions": out.get("assumptions"), "proposal": proposal}
 
     def _min_evs_to_ohko(self, args: dict[str, Any]) -> dict[str, Any]:
-        species = (args.get("species") or "").strip()
-        target = (args.get("target") or "").strip()
+        species = self.resolve_species((args.get("species") or "").strip())
+        target = self.resolve_species((args.get("target") or "").strip())
         move = (args.get("move") or "").strip()
         if not species or not target or not move:
             return {"ok": False, "error": "need species, target and move"}

@@ -156,3 +156,34 @@ class TestToolDeclarations(unittest.TestCase):
             self.assertIn("description", d)
             self.assertIn("parameters", d)
             self.assertEqual(d["parameters"]["type"], "object")
+
+
+class TestMegaAliasResolver(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_colloquial_mega_names_resolve(self):
+        for raw in ["Charizard X", "Mega Charizard X", "Charizard Mega X", "Charizard-X"]:
+            self.assertEqual(self.reg.resolve_species(raw), "Charizard-Mega-X", raw)
+
+    def test_suffixless_mega_resolves_but_not_base(self):
+        # "Mega Garchomp" / "Garchomp Mega" -> the mega form
+        self.assertEqual(self.reg.resolve_species("Mega Garchomp"), "Garchomp-Mega")
+        self.assertEqual(self.reg.resolve_species("Garchomp Mega"), "Garchomp-Mega")
+        # plain base name must NOT be redirected to the mega
+        self.assertEqual(self.reg.resolve_species("Garchomp"), "Garchomp")
+
+    def test_unknown_or_normal_names_pass_through(self):
+        self.assertEqual(self.reg.resolve_species("Incineroar"), "Incineroar")
+        self.assertEqual(self.reg.resolve_species("Totally Fake Mon"), "Totally Fake Mon")
+        self.assertEqual(self.reg.resolve_species(""), "")
+
+    def test_outspeed_tool_accepts_colloquial_mega(self):
+        out = self.reg.call("min_speed_to_outspeed", {
+            "species": "Charizard X", "target": "Aerodactyl",
+            "target_max_speed": True, "our_boost": 1, "nature": "Adamant",
+        })
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["result"]["nature"], "Adamant")
