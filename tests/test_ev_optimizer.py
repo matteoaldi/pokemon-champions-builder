@@ -343,5 +343,43 @@ class TestSurviveRedesign(unittest.TestCase):
             self.assertGreaterEqual(r.spd_ev, 0)
 
 
+class TestOhkoBoost(unittest.TestCase):
+    def _mon(self, atk=100, spa=100, hp=100, df=100, spd=100, spe=100, nature="Hardy", evs=None):
+        from pokemon_anti_meta_builder.damage_calc.calculator import Combatant
+        return Combatant(
+            name="M", level=50, types=["normal"],
+            base_stats={"hp": hp, "atk": atk, "def": df, "spa": spa, "spd": spd, "spe": spe},
+            evs=evs or {}, ivs={k: 31 for k in ("hp","atk","def","spa","spd","spe")}, nature=nature,
+        )
+
+    def test_attack_boost_helps_ohko(self):
+        # +2 Atk must reach the OHKO threshold with <= the EVs needed at +0
+        # (or make a previously-infeasible OHKO feasible).
+        from pokemon_anti_meta_builder.ev_optimizer.ohko import find_min_offensive_evs
+        attacker = self._mon(atk=110)
+        target = self._mon(hp=150, df=100)
+        base = find_min_offensive_evs(attacker, target, "Earthquake", goal="ohko")
+        boosted = find_min_offensive_evs(attacker, target, "Earthquake", goal="ohko", attack_boost=2)
+        # boosted min_damage at its returned spread must be >= base's (more power)
+        self.assertGreaterEqual(boosted.min_damage, base.min_damage)
+
+    def test_default_boost_zero_unchanged(self):
+        from pokemon_anti_meta_builder.ev_optimizer.ohko import find_min_offensive_evs
+        attacker = self._mon(atk=120)
+        target = self._mon(hp=140, df=90)
+        a = find_min_offensive_evs(attacker, target, "Earthquake", goal="ohko")
+        b = find_min_offensive_evs(attacker, target, "Earthquake", goal="ohko", attack_boost=0)
+        self.assertEqual(a.atk_ev, b.atk_ev)
+        self.assertEqual(a.nature, b.nature)
+
+    def test_special_move_uses_spa_boost(self):
+        from pokemon_anti_meta_builder.ev_optimizer.ohko import find_min_offensive_evs
+        attacker = self._mon(spa=110)
+        target = self._mon(hp=150, spd=100)
+        base = find_min_offensive_evs(attacker, target, "Flamethrower", goal="ohko")  # special
+        boosted = find_min_offensive_evs(attacker, target, "Flamethrower", goal="ohko", attack_boost=2)
+        self.assertGreaterEqual(boosted.min_damage, base.min_damage)
+
+
 if __name__ == "__main__":
     unittest.main()

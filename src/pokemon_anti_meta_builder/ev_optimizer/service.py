@@ -131,6 +131,7 @@ class EVTunerService:
                     move=_require_move(payload),
                     field=field,
                     goal=(payload.get("goal") or "ohko"),
+                    attack_boost=int(payload.get("attackBoost") or 0),
                 )
                 used = {"atk": result.atk_ev, "spa": result.spa_ev}
                 role_hint = _detect_role(our_combatant)

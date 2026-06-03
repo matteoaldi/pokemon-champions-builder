@@ -109,9 +109,10 @@ class ToolRegistry:
                  "aurora_veil": {"type": "boolean"}, "weather": S},
                  "required": ["species", "attacker", "move"]}},
             {"name": "min_evs_to_ohko",
-             "description": "EV offensivi minimi per OHKO/2HKO un bersaglio con una mossa. goal: ohko/2hko.",
+             "description": "EV offensivi minimi per OHKO/2HKO un bersaglio con una mossa. goal: ohko/2hko. attack_boost = stage Atk/SpA (+2 Danza Spada, +1 Nitrocarica...).",
              "parameters": {"type": "object", "properties": {
-                 "species": S, "target": S, "move": S, "goal": S}, "required": ["species", "target", "move"]}},
+                 "species": S, "target": S, "move": S, "goal": S,
+                 "attack_boost": {"type": "number"}}, "required": ["species", "target", "move"]}},
         ]
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -260,6 +261,7 @@ class ToolRegistry:
         out = self.ev_tuner.optimize({
             "mode": "ohko", "ourSpecies": species, "targetSpecies": target,
             "move": move, "goal": args.get("goal") or "ohko",
+            "attackBoost": int(args.get("attack_boost") or 0),
         })
         if not out.get("ok"):
             return out

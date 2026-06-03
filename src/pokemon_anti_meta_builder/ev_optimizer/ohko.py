@@ -56,12 +56,15 @@ def find_min_offensive_evs(
     move: str,
     field: Field | None = None,
     goal: str = "ohko",
+    attack_boost: int = 0,
 ) -> OhkoResult:
     field = field or Field()
     move_meta = MOVE_LIBRARY.get(move)
     if move_meta is None:
         raise ValueError(f"Unknown move: {move}")
     category = move_meta["category"]
+    if attack_boost:
+        our_mon = _with_atk_boost(our_mon, category, attack_boost)
     natures = NATURES_PHYS if category == "physical" else NATURES_SPEC
     calc = DamageCalculator()
     hp_target = target_mon.stat("hp") or 1
@@ -105,6 +108,20 @@ def find_min_offensive_evs(
         f"Miglior tentativo: {best.min_damage}-{best.max_damage} HP, KO chance {best.ko_chance}."
     )
     return best
+
+
+def _with_atk_boost(base: Combatant, category: str, stage: int) -> Combatant:
+    """Apply an Atk (physical) or SpA (special) stat-stage boost to the attacker,
+    so the OHKO search runs with e.g. +2 from Swords Dance already in effect."""
+    stat = "atk" if category == "physical" else "spa"
+    new_boosts = dict(base.boosts)
+    new_boosts[stat] = max(-6, min(6, new_boosts.get(stat, 0) + stage))
+    return Combatant(
+        name=base.name, level=base.level, types=list(base.types),
+        base_stats=dict(base.base_stats), evs=dict(base.evs), ivs=dict(base.ivs),
+        nature=base.nature, boosts=new_boosts, tera_type=base.tera_type,
+        is_burned=base.is_burned,
+    )
 
 
 def _with_offensive(base: Combatant, ev: int, category: str, nature: str) -> Combatant:

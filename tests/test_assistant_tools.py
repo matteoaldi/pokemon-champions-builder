@@ -210,3 +210,18 @@ class TestMegaAliasResolver(unittest.TestCase):
         })
         self.assertTrue(out["ok"])
         self.assertEqual(out["result"]["nature"], "Adamant")
+
+
+class TestOhkoBoostTool(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_ohko_tool_accepts_attack_boost(self):
+        out = self.reg.call("min_evs_to_ohko", {
+            "species": "Garchomp", "target": "Incineroar", "move": "Earthquake",
+            "attack_boost": 2,
+        })
+        self.assertTrue(out["ok"])
+        self.assertIn("result", out)
