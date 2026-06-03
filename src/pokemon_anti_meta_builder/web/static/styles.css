@@ -99,7 +99,7 @@ button {
 button:hover {
   border-color: var(--line-strong);
   background: var(--panel-soft);
-  color: var(--red-soft);
+  color: var(--text);
 }
 
 button.primary {
@@ -111,9 +111,9 @@ button.primary {
 }
 
 button.primary:hover {
-  background: var(--red-soft);
-  border-color: var(--red-soft);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.85);
+  color: #000;
 }
 
 select,
@@ -140,14 +140,14 @@ select:hover, .search:hover, input:hover, textarea:hover {
 select:focus,
 input:focus,
 textarea:focus {
-  outline: 2px solid var(--red);
+  outline: 1px solid var(--line-strong);
   outline-offset: -1px;
-  border-color: var(--red);
+  border-color: var(--line-strong);
 }
 
 .topbar {
   background: linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
-  border-bottom: 3px solid var(--red);
+  border-bottom: 1px solid var(--line);
   padding: 14px 22px;
   display: flex;
   align-items: center;
@@ -438,7 +438,7 @@ h2 {
 
 .chip.green { color: #1a1d22; background: var(--green); font-weight: 600; }
 .chip.gold  { color: #1a1d22; background: var(--gold); font-weight: 600; }
-.chip.red   { color: #fff;    background: var(--red); font-weight: 600; }
+.chip.red   { color: #000;    background: var(--red); font-weight: 600; }
 .chip.gray  { color: var(--text-soft); background: var(--panel-soft); }
 
 /* Type chips by name */
@@ -534,7 +534,7 @@ h2 {
 
 .rec {
   border: 1px solid var(--line);
-  border-left: 4px solid var(--red);
+  border-left: 4px solid var(--line-strong);
   border-radius: 8px;
   padding: 10px;
   background: var(--bg-soft);
@@ -743,7 +743,7 @@ h2 {
   gap: 4px;
 }
 
-.threat-section.threat-danger .threat-card { border-left: 4px solid var(--red); }
+.threat-section.threat-danger .threat-card { border-left: 4px solid var(--danger); }
 .threat-section.threat-risky .threat-card  { border-left: 4px solid var(--gold); }
 .threat-section.threat-safe .threat-card   { border-left: 4px solid var(--green); }
 
@@ -1049,9 +1049,9 @@ textarea {
 }
 
 .boost-btn:hover {
-  background: var(--red);
-  border-color: var(--red);
-  color: #fff;
+  background: var(--panel-soft);
+  border-color: var(--line-strong);
+  color: var(--text);
 }
 
 .boost-value {
@@ -1061,7 +1061,7 @@ textarea {
 }
 
 .boost-value.boost-positive { color: var(--gold); }
-.boost-value.boost-negative { color: var(--red); }
+.boost-value.boost-negative { color: var(--danger); }
 
 .live-stats {
   margin-top: 4px;
@@ -1381,7 +1381,7 @@ textarea {
 }
 .toast.hidden { display: none; }
 .toast.success { border-left-color: var(--green); }
-.toast.error { border-left-color: var(--red); }
+.toast.error { border-left-color: var(--danger); }
 
 /* SIDEBAR REORG ----------------------------------- */
 /* Saved teams as a compact dropdown in the topbar */
@@ -1469,7 +1469,7 @@ textarea {
 
 .search-mode-btn.active {
   background: var(--red);
-  color: #fff;
+  color: #000;
   border-color: var(--red);
 }
 
@@ -1515,7 +1515,7 @@ textarea {
 
 .filter-chip.active {
   background: var(--red);
-  color: #fff;
+  color: #000;
   border-color: var(--red);
 }
 
@@ -1619,7 +1619,7 @@ textarea {
   margin-top: 8px;
   padding: 8px 10px;
   background: var(--bg-soft);
-  border-left: 2px solid var(--red);
+  border-left: 2px solid var(--line-strong);
   border-radius: 4px;
   white-space: pre-wrap;
   font-size: 13px;
@@ -1655,7 +1655,7 @@ textarea {
 }
 
 .evt-manual-total.invalid {
-  color: var(--red);
+  color: var(--danger);
   font-weight: 600;
 }
 
