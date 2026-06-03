@@ -39,3 +39,6 @@ data/teams/
 
 # Browser vendor bundle (regenerate with sync-calc)
 src/pokemon_anti_meta_builder/web/static/vendor/
+
+# Script di avvio locale con API key (NON committare)
+run.sh
