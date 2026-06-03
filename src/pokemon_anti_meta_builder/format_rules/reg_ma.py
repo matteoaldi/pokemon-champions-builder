@@ -22,7 +22,7 @@ REG_MA_LEGAL_POKEMON = {
     "Leafeon", "Liepard", "Lopunny", "Lucario", "Luxray", "Lycanroc", "Machamp", "Mamoswine",
     "Manectric", "Maushold", "Medicham", "Meganium", "Meowscarada", "Meowstic", "Milotic", "Mimikyu",
     "Morpeko", "Mr. Rime", "Mudsdale", "Ninetales", "Noivern", "Oranguru", "Orthworm", "Palafin",
-    "Pangoro", "Passimian", "Patrat", "Pelipper", "Pidgeot", "Pikachu", "Pinsir", "Politoed",
+    "Pangoro", "Passimian", "Pelipper", "Pidgeot", "Pinsir", "Politoed",
     "Polteageist", "Primarina", "Quaquaval", "Raichu", "Rampardos", "Reuniclus", "Rhyperior", "Roserade",
     "Rotom", "Runerigus", "Sableye", "Salazzle", "Samurott", "Sandaconda", "Scizor", "Scovillain",
     "Serperior", "Sharpedo", "Simipour", "Simisage", "Simisear", "Sinistcha", "Skarmory", "Skeledirge",
@@ -79,11 +79,17 @@ def filter_legal_meta(meta: list[PokemonMeta], format_id: str) -> tuple[list[Pok
     item_keys = {to_key(name) for name in REG_MA_LEGAL_ITEMS}
     filtered: list[PokemonMeta] = []
     warnings: list[str] = []
+    seen: set[str] = set()
 
     for mon in meta:
         if _species_key(mon.name) not in legal_keys:
             warnings.append(f"{mon.name}: excluded because it is not legal in Pokemon Champions Regulation M-A.")
             continue
+        key = to_key(mon.name)
+        if key in seen:
+            # the Pokekipe source CSV can carry a species twice; keep the first.
+            continue
+        seen.add(key)
         mon.items = [item for item in mon.items if to_key(item.name) in item_keys]
         filtered.append(mon)
 

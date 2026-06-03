@@ -72,7 +72,7 @@ class RecommendationService:
                 fk = to_key(form_name)
                 if fk and fk not in self.dex_by_key:
                     self.dex_by_key[fk] = entry
-        self.off_meta = _build_off_meta_entries(self.meta, self.dex)
+        self.off_meta = _build_off_meta_entries(self.meta, self.dex, format_id)
         # Optionally hydrate off-meta entries with Pikalytics-sourced sets
         # (items/abilities/moves/spread/nature) so the SetBuilder produces
         # something better than the role-based fallback for mons like
@@ -1622,12 +1622,18 @@ def _apply_overrides(member: PokemonSet, override: dict[str, Any]) -> PokemonSet
     return replace(member, **updates)
 
 
-def _build_off_meta_entries(meta: list[PokemonMeta], dex: list[dict[str, Any]]) -> list[PokemonMeta]:
+def _build_off_meta_entries(meta: list[PokemonMeta], dex: list[dict[str, Any]], format_id: str = "") -> list[PokemonMeta]:
     meta_keys = {to_key(mon.name) for mon in meta}
+    # Only add dex mons that are actually legal in the format — the Showdown dex
+    # carries species (incl. pre-evolutions) that are NOT in Pokemon Champions.
+    from pokemon_anti_meta_builder.format_rules.reg_ma import REG_MA_LEGAL_POKEMON, is_reg_ma, _species_key
+    legal_keys = {to_key(name) for name in REG_MA_LEGAL_POKEMON} if is_reg_ma(format_id) else None
     entries: list[PokemonMeta] = []
     for raw in dex:
         name = normalize_name(raw.get("name") or "")
         if not name or to_key(name) in meta_keys:
+            continue
+        if legal_keys is not None and _species_key(name) not in legal_keys:
             continue
         types = [t.lower() for t in raw.get("types") or []]
         abilities = [
