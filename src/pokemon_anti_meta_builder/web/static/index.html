@@ -89,8 +89,7 @@
         <nav class="tabs" role="tablist">
           <button class="tab active" data-tab="build" type="button">Build</button>
           <button class="tab" data-tab="matchup" type="button">Analizza</button>
-          <button class="tab" data-tab="calc" type="button">Damage Calc</button>
-          <button class="tab" data-tab="evtuner" type="button">EV Tuner</button>
+          <button class="tab" data-tab="calc" type="button">Calcola</button>
           <button class="tab" data-tab="extras" type="button">Coach</button>
         </nav>
 
@@ -139,20 +138,25 @@
         </section>
 
         <section class="tab-panel hidden" data-panel="calc">
-          <div class="section-head"><h2>Damage calculator</h2></div>
-          <div id="calcPanel" class="calc-panel"></div>
-        </section>
-
-        <section class="tab-panel hidden" data-panel="evtuner">
-          <div class="section-head"><h2>EV Tuner</h2></div>
-          <p class="muted">Calcolatore deterministico in scala Champions (0-32 per stat, max 66 totali). I numeri li produce il motore, Gemini commenta in italiano.</p>
-          <nav class="evtuner-tabs" role="tablist">
-            <button class="evtab active" data-evtab="survive" type="button">Survive</button>
-            <button class="evtab" data-evtab="outspeed" type="button">Outspeed</button>
-            <button class="evtab" data-evtab="ohko" type="button">OHKO / 2HKO</button>
-            <button class="evtab" data-evtab="spreadmaker" type="button">Spread Maker</button>
-          </nav>
-          <div id="evtunerPanel"></div>
+          <div class="subtabs" role="tablist">
+            <button class="subtab active" data-subtab="damage" type="button">Damage Calc</button>
+            <button class="subtab" data-subtab="evtuner" type="button">EV Tuner</button>
+          </div>
+          <div class="submode" data-submode="damage">
+            <div class="section-head"><h2>Damage calculator</h2></div>
+            <div id="calcPanel" class="calc-panel"></div>
+          </div>
+          <div class="submode hidden" data-submode="evtuner">
+            <div class="section-head"><h2>EV Tuner</h2></div>
+            <p class="muted">Calcolatore deterministico in scala Champions (0-32 per stat, max 66 totali). I numeri li produce il motore, Gemini commenta in italiano.</p>
+            <nav class="evtuner-tabs" role="tablist">
+              <button class="evtab active" data-evtab="survive" type="button">Survive</button>
+              <button class="evtab" data-evtab="outspeed" type="button">Outspeed</button>
+              <button class="evtab" data-evtab="ohko" type="button">OHKO / 2HKO</button>
+              <button class="evtab" data-evtab="spreadmaker" type="button">Spread Maker</button>
+            </nav>
+            <div id="evtunerPanel"></div>
+          </div>
         </section>
 
         <section class="tab-panel hidden" data-panel="extras">

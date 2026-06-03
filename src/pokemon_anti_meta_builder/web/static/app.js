@@ -261,6 +261,9 @@ function bindEvents() {
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => selectTab(tab.dataset.tab));
   });
+  document.querySelectorAll(".subtab").forEach((b) =>
+    b.addEventListener("click", () => selectCalcSubmode(b.dataset.subtab)));
+
   if (els.lookupInput) {
     let debounce;
     els.lookupInput.addEventListener("input", () => {
@@ -469,6 +472,11 @@ function selectTab(tabId) {
   state.activeTab = tabId;
   els.tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === tabId));
   els.panels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== tabId));
+}
+
+function selectCalcSubmode(name) {
+  document.querySelectorAll(".subtab").forEach((b) => b.classList.toggle("active", b.dataset.subtab === name));
+  document.querySelectorAll(".submode").forEach((m) => m.classList.toggle("hidden", m.dataset.submode !== name));
 }
 
 function renderCounters(data) {
@@ -3078,7 +3086,7 @@ async function applyTunerToTeam(data) {
 
 function openTuner(species) {
   evtuner.ourSpecies = species;
-  selectTab("evtuner");
+  selectTab("calc"); selectCalcSubmode("evtuner");
   // Render to pick up the new ourSpecies, then focus the target field
   renderEvTuner();
   setTimeout(() => {

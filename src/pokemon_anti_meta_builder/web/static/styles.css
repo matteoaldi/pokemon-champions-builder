@@ -1787,3 +1787,7 @@ textarea {
 .assistant-form .search { flex: 1; }
 .assistant-proposals { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
 .proposal-card { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 10px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.subtabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.subtab { border-radius: 9999px; padding: 4px 10px; background: transparent; border: 1px solid var(--line); color: var(--text-soft); min-height: 30px; cursor: pointer; }
+.subtab.active { background: var(--panel-soft); color: var(--text); border-color: var(--line-strong); }
+.submode.hidden { display: none; }
