@@ -1327,7 +1327,7 @@ textarea {
 }
 
 .saved-team-row.active {
-  border-color: var(--accent, #f5a623);
+  border-color: var(--line-strong);
 }
 
 .saved-team-load {
