@@ -862,14 +862,6 @@ function calcCardTemplate(role, label) {
       <label>Pokemon
         <input data-field="name" type="search" list="calcMonsList" placeholder="Scrivi un nome..." autocomplete="off" />
       </label>
-      <div class="calc-quick-row">
-        <label class="calc-quick-label">Counter (chi lo batte) → carica nell'altro slot
-          <select data-quick="counters"><option value="">—</option></select>
-        </label>
-        <label class="calc-quick-label">Counterati (chi batte) → carica nell'altro slot
-          <select data-quick="victims"><option value="">—</option></select>
-        </label>
-      </div>
       <label>Nature
         <select data-field="nature"></select>
       </label>
@@ -952,8 +944,6 @@ async function populateCalcDropdowns() {
         await loadAttackerLearnset(nameInput.value);
       }
       updateLivePreview();
-      // Populate the "counter / counterati" quick selects for this card.
-      refreshCalcQuickSelects(role, nameInput.value);
     };
     nameInput.addEventListener("change", () => loadByName(nameInput.value));
     nameInput.addEventListener("keydown", (event) => {
@@ -963,24 +953,6 @@ async function populateCalcDropdowns() {
       }
     });
     card.querySelector("[data-field='nature']").innerHTML = Object.keys(NATURES).map((n) => `<option value="${n}">${n}</option>`).join("");
-
-    // Quick-select dropdowns: pick a counter or a target → load it in the OTHER role
-    const otherRole = role === "attacker" ? "defender" : "attacker";
-    const quickCounters = card.querySelector("[data-quick='counters']");
-    const quickVictims = card.querySelector("[data-quick='victims']");
-    [quickCounters, quickVictims].forEach((sel) => {
-      if (!sel) return;
-      sel.addEventListener("change", () => {
-        if (!sel.value) return;
-        const otherCard = document.querySelector(`.calc-card[data-role='${otherRole}']`);
-        const otherInput = otherCard?.querySelector("[data-field='name']");
-        if (otherInput) {
-          otherInput.value = sel.value;
-          otherInput.dispatchEvent(new Event("change"));
-        }
-        sel.value = "";
-      });
-    });
   });
   document.querySelector("#calcShowAllMoves").addEventListener("change", (event) => {
     calcState.showAllMoves = event.target.checked;
@@ -1000,37 +972,6 @@ async function populateCalcDropdowns() {
   refreshCalcTeamPickers();
   syncCalcField();
   updateLivePreview();
-}
-
-async function refreshCalcQuickSelects(role, monName) {
-  const card = document.querySelector(`.calc-card[data-role='${role}']`);
-  if (!card || !monName) return;
-  const countersSel = card.querySelector("[data-quick='counters']");
-  const victimsSel = card.querySelector("[data-quick='victims']");
-  if (!countersSel || !victimsSel) return;
-  countersSel.innerHTML = '<option value="">— caricamento —</option>';
-  victimsSel.innerHTML = '<option value="">— caricamento —</option>';
-  let counters = [], victims = [];
-  try {
-    const data = await fetchJson(`/api/counter_lookup?name=${encodeURIComponent(monName)}`);
-    counters = data.counters || [];
-  } catch (e) { /* swallow */ }
-  try {
-    const data = await fetchJson(`/api/countered_by?name=${encodeURIComponent(monName)}`);
-    victims = data.victims || [];
-  } catch (e) { /* swallow */ }
-  const fmt = (lst, label) => {
-    if (!lst.length) return `<option value="">— ${label} —</option>`;
-    return [`<option value="">— ${label} —</option>`].concat(
-      lst.map((c) => {
-        const usage = c.meta_usage ? ` (${c.meta_usage.toFixed(1)}%)` : "";
-        const off = c.offMeta ? " · off-meta" : "";
-        return `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}${usage}${off}</option>`;
-      })
-    ).join("");
-  };
-  countersSel.innerHTML = fmt(counters, `${counters.length} counter`);
-  victimsSel.innerHTML = fmt(victims, `${victims.length} battuti`);
 }
 
 function refreshCalcTeamPickers() {
