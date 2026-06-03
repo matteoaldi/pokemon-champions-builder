@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from pokemon_anti_meta_builder.ai_coach import AICoach
 from pokemon_anti_meta_builder.damage_calc import DamageCalculator, MOVE_LIBRARY
 from pokemon_anti_meta_builder.damage_calc.calculator import Combatant, Field
 from pokemon_anti_meta_builder.ev_optimizer import EVTunerService
@@ -37,6 +37,10 @@ def run_server(
     )
     storage = TeamStorage(Path(teams_dir) if teams_dir else Path.cwd() / "data" / "teams")
     ev_tuner = EVTunerService(service)
+    from pokemon_anti_meta_builder.ai_coach.tools import ToolRegistry
+    from pokemon_anti_meta_builder.ai_coach.agent import GeminiAgent, make_real_gemini_caller
+    tool_registry = ToolRegistry(service, ev_tuner)
+    assistant = GeminiAgent(tool_registry, make_real_gemini_caller()) if os.getenv("GEMINI_API_KEY") else None
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args) -> None:
@@ -166,12 +170,20 @@ def run_server(
                     payload.get("overrides") or {},
                 ).as_dict())
                 return
-            if parsed.path == "/api/coach":
-                state = service.build_state(
-                    payload.get("selected", []),
-                    payload.get("overrides") or {},
-                ).as_dict()
-                self._json(AICoach().advise(state))
+            if parsed.path == "/api/assistant":
+                if assistant is None:
+                    self._json({"enabled": False,
+                                "reply": "Imposta GEMINI_API_KEY per usare l'assistente.",
+                                "proposals": [], "toolTrace": []})
+                    return
+                messages = payload.get("messages") or []
+                team_state = None
+                if payload.get("selected"):
+                    team_state = service.build_state(payload.get("selected", []),
+                                                     payload.get("overrides") or {}).as_dict()
+                result = assistant.run(messages, team_state=team_state)
+                result["enabled"] = True
+                self._json(result)
                 return
             if parsed.path == "/api/counters":
                 self._json(service.team_counters(

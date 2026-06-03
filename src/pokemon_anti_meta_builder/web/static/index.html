@@ -156,8 +156,15 @@
         </section>
 
         <section class="tab-panel hidden" data-panel="extras">
-          <div class="section-head"><h2>AI Coach</h2></div>
-          <pre id="coachPanel" class="coach"></pre>
+          <div class="section-head"><h2>Assistente</h2></div>
+          <p class="muted">Chiedi liberamente: counter, mosse, EV, set. I numeri vengono dall'engine.</p>
+          <div id="assistantLog" class="assistant-log"></div>
+          <div id="assistantProposals" class="assistant-proposals"></div>
+          <form id="assistantForm" class="assistant-form">
+            <input id="assistantInput" class="search" type="text" autocomplete="off"
+                   placeholder="Es. quale Pokémon conosce Flare Blitz e Follow Me?" />
+            <button class="primary" type="submit">Invia</button>
+          </form>
         </section>
       </section>
     </main>
