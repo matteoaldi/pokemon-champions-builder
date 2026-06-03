@@ -225,3 +225,36 @@ class TestOhkoBoostTool(unittest.TestCase):
         })
         self.assertTrue(out["ok"])
         self.assertIn("result", out)
+
+
+class TestBuildSpreadTool(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_build_spread_returns_full_evs_and_proposal(self):
+        out = self.reg.call("build_spread", {
+            "species": "Charizard-Mega-Y", "nature": "Modest", "role": "offensive",
+        })
+        self.assertTrue(out["ok"])
+        self.assertIn("evs", out["result"])
+        self.assertIn("proposal", out)
+        self.assertEqual(out["proposal"]["species"], "Charizard-Mega-Y")
+
+    def test_build_spread_accepts_colloquial_mega_and_reserved(self):
+        out = self.reg.call("build_spread", {
+            "species": "Charizard Y", "nature": "Modest",
+            "fixed_evs": {"spe": 16},
+        })
+        self.assertTrue(out["ok"])
+        # the reserved Spe must be honored in the final spread
+        self.assertGreaterEqual(out["result"]["evs"].get("spe", 0), 16)
+
+    def test_build_spread_needs_nature(self):
+        out = self.reg.call("build_spread", {"species": "Garchomp"})
+        self.assertFalse(out["ok"])
+
+    def test_build_spread_in_declarations(self):
+        names = {d["name"] for d in self.reg.declarations()}
+        self.assertIn("build_spread", names)

@@ -25,7 +25,11 @@ SYSTEM_PROMPT = (
     "Modesto=Modest, Calmo=Calm, Audace=Lonely, Ardito=Brave, Lesto=Hasty, Ingenuo=Naive, Quieto=Quiet, "
     "Vivace=Naughty, Scaltro=Rash, Sereno=Bold, Birbone=Impish, Scontroso=Careful, Lunatico=Sassy, Mite=Gentle) "
     "prima di passarle ai tool. "
-    "Se un tool torna ok=false, spiega l'errore e chiedi chiarimenti."
+    "Se un tool torna ok=false, spiega l'errore e chiedi chiarimenti. "
+    "Per costruire spread completi ragiona INSIEME all'utente: chiedi natura e ruolo, "
+    "esponi i trade-off (più bulk vs più potenza/velocità), usa build_spread per lo "
+    "spread completo e gli altri tool EV per i singoli vincoli (regge X, supera Y, OHKO Z), "
+    "poi proponi e itera in base ai suoi dubbi."
 )
 
 

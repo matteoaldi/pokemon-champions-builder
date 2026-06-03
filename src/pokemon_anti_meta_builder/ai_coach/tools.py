@@ -27,6 +27,7 @@ class ToolRegistry:
             "min_speed_to_outspeed": self._min_speed_to_outspeed,
             "min_evs_to_survive": self._min_evs_to_survive,
             "min_evs_to_ohko": self._min_evs_to_ohko,
+            "build_spread": self._build_spread,
         }
 
     def tool_names(self) -> list[str]:
@@ -113,6 +114,12 @@ class ToolRegistry:
              "parameters": {"type": "object", "properties": {
                  "species": S, "target": S, "move": S, "goal": S,
                  "attack_boost": {"type": "number"}}, "required": ["species", "target", "move"]}},
+            {"name": "build_spread",
+             "description": "Genera uno spread EV COMPLETO (Speed + offensiva + bulk) per un Pokémon data una natura. role: auto/offensive/defensive. fixed_evs = EV già decisi da tenere (es. {spe:16}); il bulk usa il budget residuo. Ritorna lo spread completo applicabile.",
+             "parameters": {"type": "object", "properties": {
+                 "species": S, "nature": S, "role": S,
+                 "fixed_evs": {"type": "object"}, "meta_limit": {"type": "number"}},
+                 "required": ["species", "nature"]}},
         ]
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -268,3 +275,33 @@ class ToolRegistry:
         proposal = {"species": species, "evs": out["result"].get("evs", {}),
                     "note": f"{args.get('goal') or 'ohko'} {target} con {move}"} if out["result"].get("feasible") else None
         return {"ok": True, "result": out["result"], "assumptions": out.get("assumptions"), "proposal": proposal}
+
+    def _build_spread(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Generate a COMPLETE EV spread (Spe + offense + bulk) for a mon, given
+        a nature and optional already-spent EVs (fixed_evs). Wraps the Spread
+        Maker engine; returns the full spread plus an applicable proposal."""
+        species = self.resolve_species((args.get("species") or "").strip())
+        nature = (args.get("nature") or "").strip()
+        if not species or not nature:
+            return {"ok": False, "error": "servono species e natura (es. Modest)"}
+        payload: dict[str, Any] = {
+            "ourSpecies": species,
+            "nature": nature,
+            "role": args.get("role") or "auto",
+        }
+        fixed = args.get("fixed_evs")
+        if isinstance(fixed, dict) and fixed:
+            payload["fixedEvs"] = {k: int(v) for k, v in fixed.items() if v is not None}
+        if args.get("meta_limit"):
+            payload["metaLimit"] = int(args["meta_limit"])
+        out = self.ev_tuner.spread_maker(payload)
+        if not out.get("ok"):
+            return out
+        res = out["result"]
+        proposal = {
+            "species": species,
+            "nature": res.get("nature", nature),
+            "evs": res.get("evs", {}),
+            "note": f"spread {res.get('role', 'auto')} completo ({res.get('totalUsed', 0)} EV)",
+        }
+        return {"ok": True, "result": res, "notes": res.get("notes", []), "proposal": proposal}
