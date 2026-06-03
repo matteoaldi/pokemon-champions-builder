@@ -92,52 +92,48 @@ def find_min_evs_to_survive(
         defender = _with_def_boost(defender, category, defense_boost)
     rolls_required = {"guaranteed": 16, "high": 15, "median": 8}.get(threshold, 16)
 
-    best: SurviveResult | None = None
+    # --- remaining budget: keep offensive EVs already spent, bulk uses the rest ---
+    reserved = sum(int(defender.evs.get(k, 0) or 0) for k in ("atk", "spa", "spe"))
+    bulk_budget = max(0, EV_MAX_TOTAL - reserved)
 
-    candidates = _enumerate_candidates()
-    for total, hp_ev, def_ev in candidates:
-        for nature in natures:
-            d = _clone_defender(defender, hp_ev, def_ev, category, nature)
-            result = calc.calculate(attacker, d, move, field)
-            hp = d.stat("hp")
-            surviving_rolls = sum(1 for r in result.rolls if r < hp)
-            if surviving_rolls >= rolls_required:
+    best_infeasible: SurviveResult | None = None
+    for total in range(0, bulk_budget + 1):
+        feasible_here: list[SurviveResult] = []
+        for hp_ev in range(0, min(total, EV_MAX_PER_STAT) + 1):
+            def_ev = total - hp_ev
+            if def_ev > EV_MAX_PER_STAT or def_ev < 0:
+                continue
+            for nature in natures:
+                d = _clone_defender(defender, hp_ev, def_ev, category, nature)
+                result = calc.calculate(attacker, d, move, field)
+                hp_stat = d.stat("hp")
+                surviving = sum(1 for r in result.rolls if r < hp_stat)
                 spd_ev = def_ev if category == "special" else 0
                 def_ev_out = 0 if category == "special" else def_ev
-                return SurviveResult(
-                    feasible=True,
-                    nature=nature,
-                    hp_ev=hp_ev,
-                    def_ev=def_ev_out,
-                    spd_ev=spd_ev,
-                    total_used=hp_ev + def_ev,
-                    survival_pct=surviving_rolls / 16 * 100,
-                    max_damage=max(result.rolls),
-                    hp_after_calc=hp,
+                res = SurviveResult(
+                    feasible=(surviving >= rolls_required),
+                    nature=nature, hp_ev=hp_ev, def_ev=def_ev_out, spd_ev=spd_ev,
+                    total_used=hp_ev + def_ev, survival_pct=surviving / 16 * 100,
+                    max_damage=max(result.rolls), hp_after_calc=hp_stat,
                 )
-            # Track the best attempt in case nothing is feasible.
-            pct = surviving_rolls / 16 * 100
-            if best is None or pct > best.survival_pct:
-                spd_ev = def_ev if category == "special" else 0
-                def_ev_out = 0 if category == "special" else def_ev
-                best = SurviveResult(
-                    feasible=False,
-                    nature=nature,
-                    hp_ev=hp_ev,
-                    def_ev=def_ev_out,
-                    spd_ev=spd_ev,
-                    total_used=hp_ev + def_ev,
-                    survival_pct=pct,
-                    max_damage=max(result.rolls),
-                    hp_after_calc=hp,
-                )
+                if res.feasible:
+                    feasible_here.append(res)
+                elif best_infeasible is None or res.survival_pct > best_infeasible.survival_pct:
+                    best_infeasible = res
+        if feasible_here:
+            def _bulk(r: SurviveResult) -> tuple[int, int]:
+                d = _clone_defender(defender, r.hp_ev, (r.spd_ev or r.def_ev), category, r.nature)
+                bulk = d.stat("hp") * d.stat("spd" if category == "special" else "def")
+                return (bulk, r.hp_ev)  # tiebreak: more HP
+            return max(feasible_here, key=_bulk)
 
-    assert best is not None  # candidates is non-empty
-    best.__dict__["note"] = (
-        f"Sopravvivenza '{threshold}' impossibile entro {EV_MAX_TOTAL} EV totali. "
-        f"Miglior tentativo: {best.survival_pct:.0f}% di chance."
+    # nothing feasible within the remaining budget
+    assert best_infeasible is not None
+    best_infeasible.__dict__["note"] = (
+        f"Impossibile reggere col budget residuo ({bulk_budget} EV disponibili dopo "
+        f"{reserved} già spesi in attacco/velocità). Miglior tentativo: {best_infeasible.survival_pct:.0f}%."
     )
-    return best
+    return best_infeasible
 
 
 def _clone_defender(base: Combatant, hp_ev: int, def_ev: int, category: str, nature: str) -> Combatant:
@@ -150,11 +146,11 @@ def _clone_defender(base: Combatant, hp_ev: int, def_ev: int, category: str, nat
     else:
         new_evs["spd"] = def_ev
         new_evs["def"] = 0
-    # Keep offensive EVs at 0 in the trial — we're only tuning bulk.
+    # Offensive EVs don't affect damage taken, so zero them in the trial clone.
+    # The real budget they consume is already accounted for via `reserved` in
+    # find_min_evs_to_survive (read from the original defender before cloning).
     for k in ("atk", "spa", "spe"):
-        new_evs.setdefault(k, 0)
-        if k not in ("atk", "spa", "spe"):
-            new_evs[k] = 0
+        new_evs[k] = 0
     return Combatant(
         name=base.name,
         level=base.level,
@@ -181,18 +177,3 @@ def _with_def_boost(base: Combatant, category: str, stage: int) -> Combatant:
         nature=base.nature, boosts=new_boosts, tera_type=base.tera_type,
         is_burned=base.is_burned,
     )
-
-
-def _enumerate_candidates() -> list[tuple[int, int, int]]:
-    """Yield (total, hp_ev, def_ev) sorted by total ascending.
-
-    This guarantees the first feasible candidate is the minimum-EV one.
-    """
-    out: list[tuple[int, int, int]] = []
-    for total in range(0, EV_MAX_TOTAL + 1):
-        for hp_ev in range(0, min(total, EV_MAX_PER_STAT) + 1):
-            def_ev = total - hp_ev
-            if def_ev > EV_MAX_PER_STAT:
-                continue
-            out.append((total, hp_ev, def_ev))
-    return out

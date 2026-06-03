@@ -277,5 +277,71 @@ class TestSurviveNatureBoostField(unittest.TestCase):
         self.assertEqual(a.total_used, b.total_used)
 
 
+class TestSurviveRedesign(unittest.TestCase):
+    def _mon(self, hp=100, df=100, spd=100, atk=100, spa=100, spe=100, nature="Hardy", evs=None):
+        from pokemon_anti_meta_builder.damage_calc.calculator import Combatant
+        return Combatant(
+            name="M", level=50, types=["normal"],
+            base_stats={"hp": hp, "atk": atk, "def": df, "spa": spa, "spd": spd, "spe": spe},
+            evs=evs or {}, ivs={k: 31 for k in ("hp","atk","def","spa","spd","spe")}, nature=nature,
+        )
+
+    def test_respects_remaining_budget(self):
+        # Defender already spent 40 EV on offense+speed -> bulk may use at most 26.
+        # atk=600 (non-STAB Earthquake) forces >26 EVs in old code, proving the budget
+        # constraint is respected in the redesign.
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        defender = self._mon(hp=80, df=70, evs={"spa": 32, "spe": 8})  # 40 reserved
+        attacker = self._mon(atk=600)
+        r = find_min_evs_to_survive(defender, attacker, "Earthquake")
+        # bulk EVs (hp+def+spd) must never exceed 66 - 40 = 26
+        self.assertLessEqual(r.hp_ev + r.def_ev + r.spd_ev, 26)
+
+    def test_infeasible_within_remaining_budget_is_reported(self):
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        # 62 EV already on offense/speed -> 4 left; atk=600 requires far more than 4.
+        # New code must declare infeasible and not bust the cap.
+        defender = self._mon(hp=70, df=60, evs={"spa": 32, "spe": 30})  # 62 reserved -> 4 left
+        attacker = self._mon(atk=600)
+        r = find_min_evs_to_survive(defender, attacker, "Earthquake")
+        self.assertFalse(r.feasible)
+        self.assertLessEqual(r.hp_ev + r.def_ev + r.spd_ev, 4)
+
+    def test_bulk_max_prefers_balanced_high_hp(self):
+        # At the min feasible total, the chosen split must maximize HP_stat*Def_stat.
+        # hp_base=60, def_base=130 (high-def, low-HP pokemon) vs atk=900 forces a total=49
+        # split where the old code returns lowest hp_ev (suboptimal) while new code returns max bulk.
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        from pokemon_anti_meta_builder.damage_calc.calculator import Combatant
+        defender = self._mon(hp=60, df=130)
+        attacker = self._mon(atk=900)
+        r = find_min_evs_to_survive(defender, attacker, "Earthquake")
+        self.assertTrue(r.feasible)
+        total = r.hp_ev + r.def_ev
+        def stat(hp_ev, def_ev, which):
+            c = Combatant(name="x", level=50, types=["normal"],
+                          base_stats={"hp":60,"atk":100,"def":130,"spa":100,"spd":100,"spe":100},
+                          evs={"hp":hp_ev,"def":def_ev}, ivs={k:31 for k in ("hp","atk","def","spa","spd","spe")},
+                          nature=r.nature)
+            return c.stat(which)
+        chosen_bulk = stat(r.hp_ev, r.def_ev, "hp") * stat(r.hp_ev, r.def_ev, "def")
+        # no same-total split should have strictly greater bulk than the chosen one
+        for hp_ev in range(0, min(total, 32) + 1):
+            def_ev = total - hp_ev
+            if def_ev > 32 or def_ev < 0:
+                continue
+            b = stat(hp_ev, def_ev, "hp") * stat(hp_ev, def_ev, "def")
+            self.assertLessEqual(b, chosen_bulk)  # chosen is the max-bulk split at this total
+
+    def test_special_move_uses_spd(self):
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        defender = self._mon(hp=90, spd=80)
+        attacker = self._mon(spa=150)
+        r = find_min_evs_to_survive(defender, attacker, "Flamethrower")  # special, in MOVE_LIBRARY
+        if r.feasible:
+            self.assertEqual(r.def_ev, 0)
+            self.assertGreaterEqual(r.spd_ev, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
