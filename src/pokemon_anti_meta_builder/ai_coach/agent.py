@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import urllib.error
 import urllib.request
 from typing import Any, Callable
@@ -78,6 +79,14 @@ def make_real_gemini_caller(api_key: str | None = None, model: str | None = None
     key = api_key or os.getenv("GEMINI_API_KEY")
     primary = model or os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
 
+    # macOS / Python.org builds often lack system root certs; use certifi's
+    # bundle when available so HTTPS verification works without disabling it.
+    try:
+        import certifi
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ssl_context = ssl.create_default_context()
+
     def _to_gemini_contents(contents):
         out = []
         sys_txt = []
@@ -110,7 +119,7 @@ def make_real_gemini_caller(api_key: str | None = None, model: str | None = None
             url = GEMINI_ENDPOINT.format(model=model_name, key=key)
             req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
             try:
-                with urllib.request.urlopen(req, timeout=30) as r:
+                with urllib.request.urlopen(req, timeout=30, context=ssl_context) as r:
                     payload = json.loads(r.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
                 last_error = str(e.code)
