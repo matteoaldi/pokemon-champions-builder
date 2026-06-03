@@ -452,25 +452,37 @@ h2 {
 .chip.red   { color: #000;    background: var(--red); font-weight: 600; }
 .chip.gray  { color: var(--text-soft); background: var(--panel-soft); }
 
-/* Type chips by name */
-.chip.type-normal   { background: var(--t-normal);   color: #1a1d22; }
-.chip.type-fire     { background: var(--t-fire);     color: #1a1d22; }
-.chip.type-water    { background: var(--t-water);    color: #fff;    }
-.chip.type-electric { background: var(--t-electric); color: #1a1d22; }
-.chip.type-grass    { background: var(--t-grass);    color: #1a1d22; }
-.chip.type-ice      { background: var(--t-ice);      color: #1a1d22; }
-.chip.type-fighting { background: var(--t-fighting); color: #fff;    }
-.chip.type-poison   { background: var(--t-poison);   color: #fff;    }
-.chip.type-ground   { background: var(--t-ground);   color: #1a1d22; }
-.chip.type-flying   { background: var(--t-flying);   color: #1a1d22; }
-.chip.type-psychic  { background: var(--t-psychic);  color: #fff;    }
-.chip.type-bug      { background: var(--t-bug);      color: #1a1d22; }
-.chip.type-rock     { background: var(--t-rock);     color: #fff;    }
-.chip.type-ghost    { background: var(--t-ghost);    color: #fff;    }
-.chip.type-dragon   { background: var(--t-dragon);   color: #fff;    }
-.chip.type-dark     { background: var(--t-dark);     color: #fff;    }
-.chip.type-steel    { background: var(--t-steel);    color: #1a1d22; }
-.chip.type-fairy    { background: var(--t-fairy);    color: #1a1d22; }
+/* Type chips: Raycast-style category accents.
+   Saturated type color stays inside the chip (the "category illustration"):
+   soft tinted background + solid-color text. Chrome stays monochrome. */
+.chip[class*="type-"] {
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  text-transform: capitalize;
+}
+.chip.type-normal   { background: color-mix(in srgb, var(--t-normal) 18%, transparent);   color: var(--t-normal); }
+.chip.type-fire     { background: color-mix(in srgb, var(--t-fire) 18%, transparent);     color: var(--t-fire); }
+.chip.type-water    { background: color-mix(in srgb, var(--t-water) 18%, transparent);    color: var(--t-water); }
+.chip.type-electric { background: color-mix(in srgb, var(--t-electric) 18%, transparent); color: var(--t-electric); }
+.chip.type-grass    { background: color-mix(in srgb, var(--t-grass) 18%, transparent);    color: var(--t-grass); }
+.chip.type-ice      { background: color-mix(in srgb, var(--t-ice) 18%, transparent);      color: var(--t-ice); }
+.chip.type-fighting { background: color-mix(in srgb, var(--t-fighting) 18%, transparent); color: var(--t-fighting); }
+.chip.type-poison   { background: color-mix(in srgb, var(--t-poison) 18%, transparent);   color: var(--t-poison); }
+.chip.type-ground   { background: color-mix(in srgb, var(--t-ground) 18%, transparent);   color: var(--t-ground); }
+.chip.type-flying   { background: color-mix(in srgb, var(--t-flying) 18%, transparent);   color: var(--t-flying); }
+.chip.type-psychic  { background: color-mix(in srgb, var(--t-psychic) 18%, transparent);  color: var(--t-psychic); }
+.chip.type-bug      { background: color-mix(in srgb, var(--t-bug) 18%, transparent);      color: var(--t-bug); }
+.chip.type-rock     { background: color-mix(in srgb, var(--t-rock) 18%, transparent);     color: var(--t-rock); }
+/* dark-valued type colors: lighten text so it reads on near-black */
+.chip.type-ghost    { background: color-mix(in srgb, var(--t-ghost) 18%, transparent);    color: color-mix(in srgb, var(--t-ghost) 70%, white); }
+.chip.type-dragon   { background: color-mix(in srgb, var(--t-dragon) 18%, transparent);   color: color-mix(in srgb, var(--t-dragon) 70%, white); }
+.chip.type-dark     { background: color-mix(in srgb, var(--t-dark) 18%, transparent);     color: color-mix(in srgb, var(--t-dark) 70%, white); }
+.chip.type-steel    { background: color-mix(in srgb, var(--t-steel) 18%, transparent);    color: var(--t-steel); }
+.chip.type-fairy    { background: color-mix(in srgb, var(--t-fairy) 18%, transparent);    color: var(--t-fairy); }
 
 /* WORKSPACE TABS --------------------------------- */
 .workspace {
