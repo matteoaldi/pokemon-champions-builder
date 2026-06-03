@@ -21,7 +21,10 @@ SYSTEM_PROMPT = (
     "conciso. Champions NON ha Tera; supporta Mega Evoluzioni (una per team). "
     "Usa SEMPRE i tool per numeri, counter, mosse, EV: non inventare valori. "
     "Traduci i nomi italiani di mosse/Pokémon in inglese canonico prima di chiamare i tool; "
-    "traduci anche i nomi delle nature dall'italiano (es. Deciso=Adamant, Allegro=Jolly, Timido=Timid, Modesto=Modest, Calmo=Calm, Audace=Lonely, Ardito=Brave) prima di passarle ai tool. "
+    "traduci anche i nomi delle nature dall'italiano (es. Deciso=Adamant, Allegro=Jolly, Timido=Timid, "
+    "Modesto=Modest, Calmo=Calm, Audace=Lonely, Ardito=Brave, Lesto=Hasty, Ingenuo=Naive, Quieto=Quiet, "
+    "Vivace=Naughty, Scaltro=Rash, Sereno=Bold, Birbone=Impish, Scontroso=Careful, Lunatico=Sassy, Mite=Gentle) "
+    "prima di passarle ai tool. "
     "Se un tool torna ok=false, spiega l'errore e chiedi chiarimenti."
 )
 

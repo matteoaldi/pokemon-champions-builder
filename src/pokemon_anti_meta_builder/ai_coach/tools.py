@@ -44,8 +44,11 @@ class ToolRegistry:
             base = form.get("base_species") or ""
             if not name or not base:
                 continue
+            # Mega names are "Base-Mega" or "Base-Mega-<Suffix>"; only treat the
+            # 3rd segment as a variant letter when the form really has that shape,
+            # so a hypothetical multi-dash name can't mis-pick a suffix token.
             parts = name.split("-")  # e.g. ["Charizard","Mega","X"] or ["Garchomp","Mega"]
-            suffix = parts[2] if len(parts) > 2 else ""
+            suffix = parts[2] if len(parts) == 3 and parts[1].lower() == "mega" else ""
             base_key = to_key(base)
             candidates = {
                 to_key(name),                        # "charizardmegax" / "garchompmega"
