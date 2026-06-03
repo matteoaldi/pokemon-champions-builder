@@ -45,6 +45,7 @@ def find_min_evs_to_outspeed(
     condition: str = "none",
     our_boost: int = 0,
     target_boost: int = 0,
+    nature_lock: str | None = None,
 ) -> OutspeedResult:
     """Return the minimum (Spe EVs, nature) that makes us strictly faster.
 
@@ -62,9 +63,11 @@ def find_min_evs_to_outspeed(
 
     target_speed = _live_speed(target_mon, tailwind=tw_opp, scarf=scarf_opp, paralyzed=paralysis_opp)
 
+    natures_to_try = (nature_lock,) if nature_lock else NATURES_PLUS_SPE
+
     best: OutspeedResult | None = None
     for spe_ev in range(0, EV_MAX_PER_STAT + 1):
-        for nature in NATURES_PLUS_SPE:
+        for nature in natures_to_try:
             ours = _with_spe(our_mon, spe_ev, nature)
             our_speed = _live_speed(ours, tailwind=tw_me, scarf=scarf_me)
             if our_speed > target_speed:
@@ -85,9 +88,10 @@ def find_min_evs_to_outspeed(
                 )
 
     assert best is not None
+    nature_desc = f"nature {nature_lock}" if nature_lock else "nature +Spe"
     best.__dict__["note"] = (
         f"Impossibile superare {target_speed} Spe entro {EV_MAX_PER_STAT} EV "
-        f"e nature +Spe. Miglior tentativo: {best.our_speed} Spe."
+        f"e {nature_desc}. Miglior tentativo: {best.our_speed} Spe."
     )
     return best
 

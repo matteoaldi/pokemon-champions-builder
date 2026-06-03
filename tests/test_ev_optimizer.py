@@ -190,5 +190,45 @@ class TestOutspeedBoost(unittest.TestCase):
         self.assertEqual(r, find_min_evs_to_outspeed(our, target, our_boost=0, target_boost=0))
 
 
+class TestOutspeedNatureLock(unittest.TestCase):
+    def _mon(self, spe_base, evs_spe=0, nature="Hardy"):
+        from pokemon_anti_meta_builder.damage_calc.calculator import Combatant
+        return Combatant(
+            name="Test", level=50, types=["normal"],
+            base_stats={"hp": 100, "atk": 100, "def": 100, "spa": 100, "spd": 100, "spe": spe_base},
+            evs={"spe": evs_spe}, ivs={"spe": 31}, nature=nature,
+        )
+
+    def test_nature_lock_uses_only_that_nature(self):
+        from pokemon_anti_meta_builder.ev_optimizer.outspeed import find_min_evs_to_outspeed
+        our = self._mon(100)
+        target = self._mon(95, evs_spe=10, nature="Hardy")
+        r = find_min_evs_to_outspeed(our, target, nature_lock="Adamant")
+        self.assertTrue(r.feasible)
+        self.assertEqual(r.nature, "Adamant")  # never silently swapped to Jolly/Timid
+
+    def test_nature_lock_can_make_it_infeasible(self):
+        # Adamant max (base100, ev32) = 152; target 162 (base110, ev32, Hardy).
+        # Free Timid/Jolly can reach 167 → feasible; Adamant locked at 152 → infeasible.
+        from pokemon_anti_meta_builder.ev_optimizer.outspeed import find_min_evs_to_outspeed
+        our = self._mon(100)
+        target = self._mon(110, evs_spe=32, nature="Hardy")
+        locked = find_min_evs_to_outspeed(our, target, nature_lock="Adamant")
+        self.assertFalse(locked.feasible)
+        self.assertEqual(locked.nature, "Adamant")
+        # Sanity: unlocked should be feasible (Timid/Jolly can close the gap)
+        free = find_min_evs_to_outspeed(our, target)
+        self.assertTrue(free.feasible)
+
+    def test_no_lock_unchanged(self):
+        from pokemon_anti_meta_builder.ev_optimizer.outspeed import find_min_evs_to_outspeed
+        our = self._mon(100)
+        target = self._mon(95, evs_spe=10, nature="Hardy")
+        a = find_min_evs_to_outspeed(our, target)
+        b = find_min_evs_to_outspeed(our, target, nature_lock=None)
+        self.assertEqual(a.nature, b.nature)
+        self.assertEqual(a.spe_ev, b.spe_ev)
+
+
 if __name__ == "__main__":
     unittest.main()

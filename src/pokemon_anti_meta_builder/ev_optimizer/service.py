@@ -107,6 +107,7 @@ class EVTunerService:
                     condition=(payload.get("condition") or "none"),
                     our_boost=int(payload.get("ourBoost") or 0),
                     target_boost=int(payload.get("targetBoost") or 0),
+                    nature_lock=payload.get("ourNatureLock") or None,
                 )
                 used = {"spe": result.spe_ev}
                 role_hint = _detect_role(our_combatant)

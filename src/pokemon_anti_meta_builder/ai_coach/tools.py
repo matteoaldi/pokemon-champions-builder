@@ -55,10 +55,11 @@ class ToolRegistry:
              "description": "Set reale (item/ability/mosse/EV/nature) e base stats di un Pokémon.",
              "parameters": {"type": "object", "properties": {"species": S}, "required": ["species"]}},
             {"name": "min_speed_to_outspeed",
-             "description": "EV Speed minimi per superare un bersaglio. target_max_speed=true assume il bersaglio a max Speed. our_boost/target_boost = stage di Speed (+1, +2...). condition: none/tailwind_me/tailwind_opp/scarf_me/scarf_opp/paralysis_opp.",
+             "description": "EV Speed minimi per superare un bersaglio. target_max_speed=true assume il bersaglio a max Speed. our_boost/target_boost = stage di Speed (+1, +2...). condition: none/tailwind_me/tailwind_opp/scarf_me/scarf_opp/paralysis_opp. nature = blocca una natura specifica (es. Adamant) invece di scegliere la più veloce.",
              "parameters": {"type": "object", "properties": {
                  "species": S, "target": S, "target_max_speed": {"type": "boolean"},
-                 "our_boost": {"type": "number"}, "target_boost": {"type": "number"}, "condition": S},
+                 "our_boost": {"type": "number"}, "target_boost": {"type": "number"}, "condition": S,
+                 "nature": S},
                  "required": ["species", "target"]}},
             {"name": "min_evs_to_survive",
              "description": "EV difensivi minimi per sopravvivere a una mossa di un attaccante. threshold: guaranteed/high/median.",
@@ -152,6 +153,7 @@ class ToolRegistry:
         target = (args.get("target") or "").strip()
         if not species or not target:
             return {"ok": False, "error": "need species and target"}
+        nature = (args.get("nature") or "").strip()
         payload = {
             "mode": "outspeed",
             "ourSpecies": species,
@@ -160,6 +162,8 @@ class ToolRegistry:
             "ourBoost": int(args.get("our_boost") or 0),
             "targetBoost": int(args.get("target_boost") or 0),
         }
+        if nature:
+            payload["ourNatureLock"] = nature
         if args.get("target_max_speed"):
             payload["targetSpreadManual"] = {"nature": "Jolly", "evs": {"spe": 32}}
         out = self.ev_tuner.optimize(payload)

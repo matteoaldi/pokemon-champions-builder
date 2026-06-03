@@ -123,6 +123,22 @@ class TestSurviveOhkoTools(unittest.TestCase):
         self.assertFalse(out["ok"])
 
 
+class TestOutspeedNatureLockTool(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_tool_passes_nature_lock(self):
+        out = self.reg.call("min_speed_to_outspeed", {
+            "species": "Charizard", "target": "Aerodactyl",
+            "target_max_speed": True, "our_boost": 1, "nature": "Adamant",
+        })
+        self.assertTrue(out["ok"])
+        # the engine result must keep the locked nature, never silently swap it
+        self.assertEqual(out["result"]["nature"], "Adamant")
+
+
 class TestToolDeclarations(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
