@@ -1803,3 +1803,40 @@ textarea {
 .subtab { border-radius: 9999px; padding: 4px 10px; background: transparent; border: 1px solid var(--line); color: var(--text-soft); min-height: 30px; cursor: pointer; }
 .subtab.active { background: var(--panel-soft); color: var(--text); border-color: var(--line-strong); }
 .submode.hidden { display: none; }
+
+/* RESPONSIVE — phone/tablet (used via remote-control on mobile) ---------- */
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;          /* sidebar stacks above the workspace */
+    padding: 8px;
+    gap: 8px;
+  }
+  .sidebar {
+    max-height: 42vh;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 768px) {
+  .tabs {
+    overflow-x: auto;                    /* horizontal scroll for the pill tabs */
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* collapse every multi-column panel grid to a single column */
+  .calc-grid,
+  .calc-stats-grid,
+  .calc-quick-row,
+  .evt-form-grid,
+  .evt-stat-grid,
+  .sm-grid,
+  .slot-edit-evs {
+    grid-template-columns: 1fr !important;
+  }
+  .app { padding: 8px; gap: 8px; }
+}
+@media (max-width: 480px) {
+  .assistant-log { max-height: 62vh; }
+  .topbar { padding: 10px 14px; }
+  .topbar h1 { font-size: 15px; }
+  .slot { grid-template-columns: 48px minmax(0, 1fr); }
+}
