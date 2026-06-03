@@ -88,8 +88,7 @@
       <section class="workspace">
         <nav class="tabs" role="tablist">
           <button class="tab active" data-tab="build" type="button">Build</button>
-          <button class="tab" data-tab="matchup" type="button">Matchup</button>
-          <button class="tab" data-tab="lookup" type="button">Lookup</button>
+          <button class="tab" data-tab="matchup" type="button">Analizza</button>
           <button class="tab" data-tab="calc" type="button">Damage Calc</button>
           <button class="tab" data-tab="evtuner" type="button">EV Tuner</button>
           <button class="tab" data-tab="extras" type="button">Coach</button>
@@ -131,10 +130,8 @@
 
           <div class="section-head"><h2>Warnings</h2></div>
           <div id="warningsPanel" class="note-list"></div>
-        </section>
 
-        <section class="tab-panel hidden" data-panel="lookup">
-          <div class="section-head"><h2>Cerca counter di un Pokémon</h2></div>
+          <div class="section-head" style="margin-top:16px"><h2>Cerca counter di un Pokémon</h2></div>
           <p class="muted">Funziona anche con forme Mega (es. "Charizard-Mega-X").</p>
           <input id="lookupInput" class="search" type="search" placeholder="Es. Garchomp, Whimsicott, Charizard-Mega-Y..." list="lookupOptions" />
           <datalist id="lookupOptions"></datalist>
