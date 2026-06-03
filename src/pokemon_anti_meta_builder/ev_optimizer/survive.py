@@ -64,6 +64,8 @@ def find_min_evs_to_survive(
     move: str,
     field: Field | None = None,
     threshold: str = "guaranteed",
+    nature_lock: str | None = None,
+    defense_boost: int = 0,
 ) -> SurviveResult:
     """Iterate EV+nature combinations until the defender survives.
 
@@ -85,7 +87,9 @@ def find_min_evs_to_survive(
     if move_meta is None:
         raise ValueError(f"Unknown move: {move}")
     category = move_meta["category"]
-    natures = PHYSICAL_NATURES if category == "physical" else SPECIAL_NATURES
+    natures = (nature_lock,) if nature_lock else (PHYSICAL_NATURES if category == "physical" else SPECIAL_NATURES)
+    if defense_boost:
+        defender = _with_def_boost(defender, category, defense_boost)
     rolls_required = {"guaranteed": 16, "high": 15, "median": 8}.get(threshold, 16)
 
     best: SurviveResult | None = None
@@ -161,6 +165,20 @@ def _clone_defender(base: Combatant, hp_ev: int, def_ev: int, category: str, nat
         nature=nature,
         boosts=dict(base.boosts),
         tera_type=base.tera_type,
+        is_burned=base.is_burned,
+    )
+
+
+def _with_def_boost(base: Combatant, category: str, stage: int) -> Combatant:
+    """Apply a Def (physical move) or SpD (special move) stat-stage boost to the
+    defender, so the survival search runs against the boosted bulk."""
+    stat = "def" if category == "physical" else "spd"
+    new_boosts = dict(base.boosts)
+    new_boosts[stat] = max(-6, min(6, new_boosts.get(stat, 0) + stage))
+    return Combatant(
+        name=base.name, level=base.level, types=list(base.types),
+        base_stats=dict(base.base_stats), evs=dict(base.evs), ivs=dict(base.ivs),
+        nature=base.nature, boosts=new_boosts, tera_type=base.tera_type,
         is_burned=base.is_burned,
     )
 

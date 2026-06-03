@@ -101,9 +101,13 @@ class ToolRegistry:
                  "nature": S},
                  "required": ["species", "target"]}},
             {"name": "min_evs_to_survive",
-             "description": "EV difensivi minimi per sopravvivere a una mossa di un attaccante. threshold: guaranteed/high/median.",
+             "description": "EV difensivi minimi per sopravvivere a una mossa di un attaccante. threshold: guaranteed/high/median. nature blocca una natura; defense_boost = stage Def/SpD (+1 Parananzia/Amnesia); reflect/light_screen/aurora_veil/weather impostano il campo.",
              "parameters": {"type": "object", "properties": {
-                 "species": S, "attacker": S, "move": S, "threshold": S}, "required": ["species", "attacker", "move"]}},
+                 "species": S, "attacker": S, "move": S, "threshold": S,
+                 "nature": S, "defense_boost": {"type": "number"},
+                 "light_screen": {"type": "boolean"}, "reflect": {"type": "boolean"},
+                 "aurora_veil": {"type": "boolean"}, "weather": S},
+                 "required": ["species", "attacker", "move"]}},
             {"name": "min_evs_to_ohko",
              "description": "EV offensivi minimi per OHKO/2HKO un bersaglio con una mossa. goal: ohko/2hko.",
              "parameters": {"type": "object", "properties": {
@@ -225,10 +229,22 @@ class ToolRegistry:
         move = (args.get("move") or "").strip()
         if not species or not attacker or not move:
             return {"ok": False, "error": "need species, attacker and move"}
-        out = self.ev_tuner.optimize({
+        nature = (args.get("nature") or "").strip()
+        field = {
+            "weather": (args.get("weather") or "").strip(),
+            "lightScreen": bool(args.get("light_screen")),
+            "reflect": bool(args.get("reflect")),
+            "auroraVeil": bool(args.get("aurora_veil")),
+        }
+        payload = {
             "mode": "survive", "ourSpecies": species, "targetSpecies": attacker,
             "move": move, "threshold": args.get("threshold") or "guaranteed",
-        })
+            "defenseBoost": int(args.get("defense_boost") or 0),
+            "field": field,
+        }
+        if nature:
+            payload["ourNatureLock"] = nature
+        out = self.ev_tuner.optimize(payload)
         if not out.get("ok"):
             return out
         proposal = {"species": species, "evs": out["result"].get("evs", {}),

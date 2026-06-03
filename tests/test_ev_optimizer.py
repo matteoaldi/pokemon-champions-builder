@@ -230,5 +230,52 @@ class TestOutspeedNatureLock(unittest.TestCase):
         self.assertEqual(a.spe_ev, b.spe_ev)
 
 
+class TestSurviveNatureBoostField(unittest.TestCase):
+    def _mon(self, hp=100, df=100, spd=100, atk=100, spa=100, spe=100, nature="Hardy", evs=None):
+        from pokemon_anti_meta_builder.damage_calc.calculator import Combatant
+        return Combatant(
+            name="M", level=50, types=["normal"],
+            base_stats={"hp": hp, "atk": atk, "def": df, "spa": spa, "spd": spd, "spe": spe},
+            evs=evs or {}, ivs={k: 31 for k in ("hp","atk","def","spa","spd","spe")}, nature=nature,
+        )
+
+    def test_nature_lock_keeps_that_nature(self):
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        defender = self._mon(hp=100, df=100)
+        attacker = self._mon(atk=120)
+        r = find_min_evs_to_survive(defender, attacker, "Earthquake", nature_lock="Adamant")
+        if r.feasible:
+            self.assertEqual(r.nature, "Adamant")  # never silently swapped to Impish/Bold
+
+    def test_defense_boost_helps_survival(self):
+        # +2 Def must make survival easier: feasible with <= the EVs needed at +0,
+        # or feasible when +0 was not.
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        defender = self._mon(hp=90, df=80)
+        attacker = self._mon(atk=140)
+        base = find_min_evs_to_survive(defender, attacker, "Earthquake")
+        boosted = find_min_evs_to_survive(defender, attacker, "Earthquake", defense_boost=2)
+        # boosted survival_pct at its returned spread must be >= base's (more bulk)
+        self.assertGreaterEqual(boosted.survival_pct, base.survival_pct)
+
+    def test_reflect_reduces_required_evs_or_helps(self):
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        from pokemon_anti_meta_builder.damage_calc.calculator import Field
+        defender = self._mon(hp=90, df=80)
+        attacker = self._mon(atk=150)
+        no_screen = find_min_evs_to_survive(defender, attacker, "Earthquake")
+        with_reflect = find_min_evs_to_survive(defender, attacker, "Earthquake", field=Field(reflect=True))
+        self.assertGreaterEqual(with_reflect.survival_pct, no_screen.survival_pct)
+
+    def test_default_unchanged(self):
+        from pokemon_anti_meta_builder.ev_optimizer.survive import find_min_evs_to_survive
+        defender = self._mon(hp=100, df=100)
+        attacker = self._mon(atk=110)
+        a = find_min_evs_to_survive(defender, attacker, "Earthquake")
+        b = find_min_evs_to_survive(defender, attacker, "Earthquake", nature_lock=None, defense_boost=0)
+        self.assertEqual(a.nature, b.nature)
+        self.assertEqual(a.total_used, b.total_used)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -86,6 +86,8 @@ class EVTunerService:
                     move=_require_move(payload),
                     field=field,
                     threshold=(payload.get("threshold") or "guaranteed"),
+                    nature_lock=payload.get("ourNatureLock") or None,
+                    defense_boost=int(payload.get("defenseBoost") or 0),
                 )
                 used = {"hp": result.hp_ev, "def": result.def_ev, "spd": result.spd_ev}
                 role_hint = _detect_role(our_combatant)

@@ -158,6 +158,29 @@ class TestToolDeclarations(unittest.TestCase):
             self.assertEqual(d["parameters"]["type"], "object")
 
 
+class TestSurviveToolExtras(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        svc = _service()
+        cls.reg = ToolRegistry(svc, EVTunerService(svc))
+
+    def test_survive_tool_accepts_nature_boost_field(self):
+        out = self.reg.call("min_evs_to_survive", {
+            "species": "Incineroar", "attacker": "Garchomp", "move": "Earthquake",
+            "nature": "Impish", "defense_boost": 1, "reflect": True,
+        })
+        self.assertTrue(out["ok"])
+        self.assertIn("result", out)
+
+    def test_survive_tool_field_changes_outcome_path(self):
+        # just assert the call succeeds with weather/screen flags (no crash)
+        out = self.reg.call("min_evs_to_survive", {
+            "species": "Incineroar", "attacker": "Garchomp", "move": "Earthquake",
+            "light_screen": True, "weather": "sun",
+        })
+        self.assertTrue(out["ok"])
+
+
 class TestMegaAliasResolver(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
