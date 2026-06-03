@@ -1,27 +1,36 @@
 :root {
   color-scheme: dark;
-  /* Linear.app design system —
-     near-black canvas + charcoal surfaces + lavender accent. */
-  --bg: #010102;
-  --bg-soft: #0a0b0c;
-  --panel: #0f1011;
-  --panel-soft: #141516;
-  --line: #23252a;
-  --line-strong: #34343a;
-  --text: #f7f8f8;
-  --text-soft: #d0d6e0;
-  --muted: #8a8f98;
-  --muted-soft: #62666d;
-  /* Accent (single chromatic Linear lavender) — replaces the old red */
-  --red: #5e6ad2;
-  --red-soft: #828fff;
-  --green: #27a644;
-  --green-soft: #6ee69d;
-  --gold: #f5b95a;
-  --gold-soft: #ffd58a;
-  --blue: #7a7fad;
-  --chip: #18191a;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  /* Raycast design system — near-black surface ladder, hairline borders,
+     white CTA, no shadows. Variable names preserved so the whole stylesheet
+     inherits the new look without per-rule edits. */
+  --bg: #07080a;            /* canvas */
+  --bg-soft: #0d0d0d;       /* surface */
+  --panel: #0d0d0d;         /* surface (cards) */
+  --panel-soft: #101111;    /* surface-elevated (inputs, buttons) */
+  --surface-card: #121212;  /* command-palette row hover, icon tiles */
+  --line: #242728;          /* hairline */
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #f4f4f6;          /* ink */
+  --text-soft: #cdcdcd;     /* body */
+  --muted: #9c9c9d;
+  --muted-soft: #6a6b6c;
+  /* Primary action is WHITE in Raycast (was lavender). --red is the legacy
+     accent name used across the sheet; remap it to white so CTAs/active states
+     become the Raycast white pill. A later task fixes spots where white-on-white
+     breaks. */
+  --red: #ffffff;
+  --red-soft: rgba(255, 255, 255, 0.72);
+  /* Raycast saturated semantic accents (warning/danger/ok/info) */
+  --green: #59d499;
+  --green-soft: rgba(89, 212, 153, 0.15);
+  --gold: #ffc533;
+  --gold-soft: rgba(255, 197, 51, 0.15);
+  --blue: #57c1ff;
+  --blue-soft: rgba(87, 193, 255, 0.15);
+  --danger: #ff6161;
+  --danger-soft: rgba(255, 97, 97, 0.15);
+  --chip: #121212;
+  --shadow: none;           /* Raycast builds depth from the surface ladder */
 
   /* Type colors (canonical) */
   --t-normal: #a8a878;
