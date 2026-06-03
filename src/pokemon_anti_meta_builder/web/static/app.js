@@ -17,6 +17,7 @@ const state = {
   currentTeamId: null,
   currentTeamName: "",
   lastTeam: [],
+  assistantHistory: [],
 };
 
 const els = {
@@ -45,8 +46,11 @@ const els = {
   threatReport: document.querySelector("#threatReport"),
   threatCards: document.querySelector("#threatCards"),
   warningsPanel: document.querySelector("#warningsPanel"),
-  coachPanel: document.querySelector("#coachPanel"),
   countersPanel: document.querySelector("#countersPanel"),
+  assistantLog: document.querySelector("#assistantLog"),
+  assistantInput: document.querySelector("#assistantInput"),
+  assistantForm: document.querySelector("#assistantForm"),
+  assistantProposals: document.querySelector("#assistantProposals"),
   refreshCountersButton: document.querySelector("#refreshCountersButton"),
   calcPanel: document.querySelector("#calcPanel"),
   lookupInput: document.querySelector("#lookupInput"),
@@ -233,12 +237,16 @@ function bindEvents() {
     state.currentTeamId = null;
     state.currentTeamName = "";
     state.overrides = {};
-    els.coachPanel.textContent = "";
     renderCurrentTeamLabel();
     await refresh();
   });
   els.autoBuildButton.addEventListener("click", autoBuild);
-  els.coachButton.addEventListener("click", askCoach);
+  if (els.coachButton) {
+    els.coachButton.addEventListener("click", () => {
+      selectTab("extras");
+      if (els.assistantInput) els.assistantInput.focus();
+    });
+  }
   if (els.saveTeamButton) {
     els.saveTeamButton.addEventListener("click", saveCurrentTeam);
   }
@@ -263,6 +271,7 @@ function bindEvents() {
   initCalc();
   initEvTuner();
   populateLookupDatalist();
+  initAssistant();
 }
 
 async function loadSavedTeams() {
@@ -516,22 +525,96 @@ async function autoBuild() {
   renderState(data);
 }
 
-async function askCoach() {
-  selectTab("extras");
-  els.coachPanel.textContent = "Thinking...";
-  const data = await fetchJson("/api/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ selected: state.selected, overrides: state.overrides }),
+function initAssistant() {
+  if (!els.assistantForm) return;
+  els.assistantForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = (els.assistantInput.value || "").trim();
+    if (!text) return;
+    els.assistantInput.value = "";
+    appendAssistantMsg("user", escapeHtml(text));
+    state.assistantHistory.push({ role: "user", text });
+    appendAssistantMsg("bot", "…", true);
+    let data;
+    try {
+      data = await fetchJson("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: state.assistantHistory,
+          selected: state.selected || [],
+          overrides: state.overrides || {},
+        }),
+      });
+    } catch (err) {
+      replaceLastBot(`Errore: ${escapeHtml(err.message)}`);
+      return;
+    }
+    replaceLastBot(escapeHtml(data.reply || ""), data.toolTrace);
+    state.assistantHistory.push({ role: "model", text: data.reply || "" });
+    renderProposals(data.proposals || []);
   });
-  const lines = [];
-  if (data.needsSetup && data.setupHint) {
-    lines.push(data.setupHint);
-    lines.push("\n---\n");
+}
+
+// `safeHtml` MUST be pre-escaped by the caller (escapeHtml). Written via innerHTML.
+function appendAssistantMsg(kind, safeHtml, pending) {
+  if (!els.assistantLog) return;
+  const div = document.createElement("div");
+  div.className = `assistant-msg ${kind}${pending ? " pending" : ""}`;
+  div.innerHTML = safeHtml;
+  els.assistantLog.appendChild(div);
+  els.assistantLog.scrollTop = els.assistantLog.scrollHeight;
+}
+
+// `safeHtml` MUST be pre-escaped by the caller. The trace block is escaped here.
+function replaceLastBot(safeHtml, trace) {
+  if (!els.assistantLog) return;
+  const pend = els.assistantLog.querySelector(".assistant-msg.bot.pending");
+  const target = pend || els.assistantLog.lastElementChild;
+  if (!target) return;
+  target.classList.remove("pending");
+  const traceHtml = (trace && trace.length)
+    ? `<div class="assistant-trace">🔧 ${trace.map((t) => escapeHtml(t.name)).join(", ")}</div>`
+    : "";
+  target.innerHTML = safeHtml + traceHtml;
+  els.assistantLog.scrollTop = els.assistantLog.scrollHeight;
+}
+
+function renderProposals(proposals) {
+  if (!els.assistantProposals) return;
+  els.assistantProposals.innerHTML = "";
+  proposals.forEach((p) => {
+    const card = document.createElement("div");
+    card.className = "proposal-card";
+    const evs = Object.entries(p.evs || {})
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${escapeHtml(k.toUpperCase())} ${escapeHtml(String(v))}`)
+      .join(" / ");
+    card.innerHTML = `<span>${escapeHtml(p.species)}${p.nature ? " · " + escapeHtml(p.nature) : ""}${evs ? " · " + escapeHtml(evs) : ""}<br><span class="muted">${escapeHtml(p.note || "")}</span></span>`;
+    const btn = document.createElement("button");
+    btn.className = "primary";
+    btn.textContent = "Applica al team";
+    btn.addEventListener("click", () => applyProposal(p));
+    card.appendChild(btn);
+    els.assistantProposals.appendChild(card);
+  });
+}
+
+async function applyProposal(p) {
+  const key = p.species;
+  if (!(state.selected || []).includes(key)) {
+    showToast(`Aggiungi prima ${key} al team per applicare lo spread.`, "error");
+    return;
   }
-  if (data.error) lines.push(`(errore: ${data.error})\n`);
-  lines.push(data.advice || "No advice returned.");
-  els.coachPanel.textContent = lines.join("\n");
+  state.overrides = state.overrides || {};
+  const prev = state.overrides[key] || {};
+  state.overrides[key] = {
+    ...prev,
+    ...(p.nature ? { nature: p.nature } : {}),
+    evs: { ...(prev.evs || {}), ...(p.evs || {}) },
+  };
+  await refresh();
+  showToast(`Applicato a ${key}`, "success");
 }
 
 async function refresh() {
