@@ -776,7 +776,6 @@ h2 {
 }
 
 .report,
-.coach,
 textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -791,7 +790,6 @@ textarea {
 }
 
 .report { min-height: 160px; }
-.coach { min-height: 120px; }
 textarea {
   min-height: 240px;
   resize: vertical;

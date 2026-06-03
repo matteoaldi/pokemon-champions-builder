@@ -9,7 +9,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from pokemon_anti_meta_builder.ai_coach import AICoach
 from pokemon_anti_meta_builder.damage_calc import DamageCalculator, MOVE_LIBRARY
 from pokemon_anti_meta_builder.damage_calc.calculator import Combatant, Field
 from pokemon_anti_meta_builder.ev_optimizer import EVTunerService
@@ -170,13 +169,6 @@ def run_server(
                     payload.get("selected", []),
                     payload.get("overrides") or {},
                 ).as_dict())
-                return
-            if parsed.path == "/api/coach":
-                state = service.build_state(
-                    payload.get("selected", []),
-                    payload.get("overrides") or {},
-                ).as_dict()
-                self._json(AICoach().advise(state))
                 return
             if parsed.path == "/api/assistant":
                 if assistant is None:
